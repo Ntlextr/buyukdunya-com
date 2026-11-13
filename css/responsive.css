@@ -1,0 +1,918 @@
+@import url(https://fonts.googleapis.com/css?family=Raleway:400,300,100,200,500,600,700);
+@media only screen and (max-width: 1550px) {
+.tab-content { 
+	top:41px; 
+	}	}
+@media only screen and (max-width: 1230px) {
+
+.tab-content { 
+	top:40px; 
+	}
+
+
+.a2{
+	margin-left:0 !important}
+.c-right{
+	display:none}
+.c-left{
+	float:left;
+	width:55%;
+	height:auto;
+	margin-top:10px
+	}
+
+.c-right2 img{
+	margin-bottom:5px
+}
+.odeme{
+	float:left;
+	width:70%;}
+.content {
+	width:95%;
+       min-height:150px;
+}
+	
+	.ilanleft2 {
+	width:100%; }
+.menu .m {
+	font-size:12px}
+.index-left{
+	width:100%;
+	height:auto;
+	margin-bottom:5px;
+	margin-top:50px !important;
+	float:left;
+}
+
+.reklam-alani{
+	width:9%;
+	margin-left:1%;}
+.left-menu{
+	
+	width:19%;
+	height:409px;
+	float:left;
+	margin-right:1%;
+	border:1px solid #eaeaea;
+}
+.banner{
+	width:69%;
+	margin-bottom:10px}
+	
+	.index-left-detail .banner{
+	width:100%;
+	height:auto;
+	margin-bottom:5px;
+	float:left;
+}
+
+.index-left-detail{
+	width:100%;
+	height:auto;
+	margin-bottom:5px;
+	float:left;
+}
+.search{
+	margin-left:450px;
+}
+    .sonilanlar .ilan{
+	float:left;
+	width:30%;
+	height:auto;
+	padding-right:1%
+	
+}
+.left-menu .l-m{
+	font-size:12px;
+	color:#999;
+	font-weight:20px;
+	width:95%;
+	height:auto;
+	border-bottom:1px solid #eaeaea;
+	padding:4px 2% 4px 3%;
+	cursor:pointer;
+	font-weight:600;
+	line-height:19px
+}
+.menu {
+	float:right;
+	width:69%;
+	height:auto;
+	margin-top:20px;
+}
+.sonilanlar{
+	width:97%;
+	height:auto;
+	background:#fff;
+	margin-bottom:20px;
+	border:1px solid #eaeaea;
+	padding:6px 1% 0 1%}
+.vitrindetail{
+	margin-left:0}
+.sonilanlar .ilanleft{
+	float:left;
+	width:23%;
+	height:auto;
+	padding-right:2%;
+	
+}
+.sonilanlar .aciklama{
+	color:#464242;
+	font-size:12px;
+	width:75%;
+	float:left;
+	max-height:34px;
+	height:34px;
+	overflow:hidden;
+
+}
+.ilanlar{
+	width:19%;
+	height:auto;
+	margin-bottom:1%;
+	float:left;
+	margin-right:1%;
+}
+.banner .ilanlar{
+	 width:19.2%;
+	height:auto;
+	margin-bottom:1%;
+	float:left;
+	margin-right:1%;}
+
+.vitrin{
+	margin-left:0;}
+.list-v{
+	margin-left:0;}
+	.ilan0{
+	margin-right:0px !important}
+.rakam{
+	float:none;
+	margin:2px auto 10px auto}
+	
+.uyeolbasliklar2{
+	text-align:center;
+	height:100px !important;
+}	
+}
+
+
+@media only screen and (max-width:1185px) {
+
+
+
+
+
+    .ilanucretleri li{
+	width:45%;
+	height:173px
+}
+
+.uyeolbasliklar2{
+	height:90px !important;	font-size:11px
+
+	
+}	
+.uyeolbasliklar2 .text2{
+	line-height:18px
+	
+}
+.index-left-detail .banner{
+	width:100%;
+	height:auto;
+	margin-bottom:5px;
+	float:left;
+}
+.c-button{
+	display:inline-block !important;
+	}
+.reklam-alani{
+	display:none}
+.menu {
+	display:none
+}
+.index-left{
+	width:100%;
+	height:auto;
+	margin-bottom:5px;
+	margin-top:0 !important;
+	float:left;
+}
+.search{
+	margin-left:65%;
+}
+.left-menu{
+	display:none
+}
+.banner{
+	width:100%;}
+
+.sonilanlar{
+	width:98%;
+}
+.sonilanlar .ilanleft{
+	float:left;
+	width:24%;
+	height:auto;
+	padding-right:1%;
+	
+}
+.ilanlar img{
+	width:auto;
+	height:150px;
+	margin-bottom:5px;
+}
+.ilanlar{
+	height:auto;
+	
+}
+.banner .ilanlar{
+	   	height:auto;}
+.banner .ilanlar img {
+  width:auto;
+	height:150px;
+	margin-bottom:5px;
+}
+
+.sonilanlar .aciklama{
+	width:73%}	
+	.logo{
+	width:200px;
+	height:auto; margin-top:0}
+.header-white{
+	width:100%;
+	height:auto;
+	background:#262626 !important;
+	padding:14px 0 14px 0;
+}
+.header{
+		height:100px;
+}
+.fixed{
+	height:150px}
+
+.ilaniustecikar{
+	width:100%;
+	padding:6px 0 6px 0;
+}
+.uyeolbasliklar{
+	width:24%;
+	height:auto;
+	float:left;
+	padding:1% 1% 1% 0;
+	margin-right:3px;
+	background:#f9f9f9;
+	border-bottom:3px solid #CCC;
+	cursor:pointer;	color:#696969 !important;
+	text-align:center
+}
+.right0{
+	margin-right:0 !important;
+	width:22%
+}
+.uyresim{
+	margin-right:0px;
+	margin-left:0px;
+	margin-bottom:10px;
+	float:none
+}
+.odemebutonlari {
+	font-size:13px}
+.vitrinliste{
+	margin-left:0px;
+}
+}
+	
+	
+	
+@media only screen and (max-width:849px) {
+        .giris2{
+	float:left;
+	width:90%;
+	height:268px;
+	padding:5% 5% 2% 5%;
+    margin-right:2%;
+
+}
+        .giris{
+	width:94%;
+    margin-top:15px
+
+
+}
+
+
+.odeme-ilanver{
+	width:100%}
+.c-left2-5 {
+    float: right;
+    width: 21%;
+    margin-left: 5%;
+    padding: 9% 2% 2% 2%;
+    margin-top: 56px;
+}
+.c-right4-ilanver {
+    width: 100%;
+    margin-right:0;
+
+}
+.odemebutonlari {
+	padding:7px 0 7px 0
+}
+
+	.banka {
+	width:100%;
+	border-right:0}
+.c-right{
+	display:none}
+.c-left{
+	width:100%;
+	}	
+.odeme{
+	width:100%;
+	}	
+.c-right4{
+	width:100%;
+	margin-top:15px}
+.c-right2{
+	width:98%;
+	margin-top:0;
+	background:#FFF}	
+.ilanver2{
+	width:21%;
+}
+ 
+.rakam{
+	margin-bottom:5px }.uyeolbasliklar2{
+	height:80px !important 
+
+}
+.uyeolbasliklar2 span{
+	display:none !important
+
+}
+.detailleft{
+	width:50%;
+	float:none;
+	margin-right:auto;
+	margin-left:auto}	
+.detailright33{
+	width:100%;}
+.detailright{
+	width:55%;
+	margin-right:3%;
+	margin-top:25px;}
+.detailright2{
+	width:40%;
+	margin-top:25px;
+}
+
+
+.fixed{
+	height:150px}
+.ilanlar img{
+	margin-bottom:5px;
+}
+
+.banner .ilanlar img {
+    margin-bottom: 5px;
+}
+.search{
+	display:none
+}	
+.ilanlar{
+	width:30%;
+	height:auto;
+	margin-bottom:2%;
+ 	float:left;
+	margin-right:1%;
+}
+.banner .ilanlar{
+		width:32.3%;
+	height:auto;
+	margin-bottom:2%;
+	float:left;
+	margin-right:1% !important;
+ }
+
+.f-left1{
+	width:70%;
+	height:auto;
+	float:left;
+	color:#e9e9e9}
+.f-left2{
+	width:30%;
+	height:auto;
+	float:left;}
+.f-left{
+	display:none}
+.f-left1 .tel{
+	width:45%;
+	float:left
+}	.sonilanlar{
+	width:96%;
+	margin-left:1%;
+	margin-right:1%
+}
+.form{
+	width:31%;
+	height:auto;
+	float:left;
+	margin-right:3% !important;
+	margin-left:0;
+	font-size:13px;
+	margin-bottom:15px;
+	margin-top:10px}
+.form0{
+	margin-right:0  !important;
+}
+.formbox{
+	width:100%;
+}
+
+.uyeolbasliklar{
+	font-size:11px
+}
+.center3{
+	width:85%;
+
+	}
+	.mobilodemegorsel{
+	width:100%;
+	margin-top:0 !important;
+	text-align:right;
+		height:auto ;
+
+}
+	.mobilodemegorsel img{
+	width:63%;
+	margin:0 auto;
+}
+
+
+    .ilanver{
+	width:98%;
+	margin-right:0;
+	height:auto;
+	margin-bottom:15px
+}
+      .detailresim {
+     height:65px !important}
+	 	}
+
+	
+	@media only screen and (max-width:632px) {
+		.pdf34 {
+			width:47%;}
+		.gc-thumbs-area.gc-hz li {
+			margin-right:1px !important}
+	.glass-case ul li .gc-li-display-container img {
+		height:50px !important}
+		
+		.gc-thumbs-area.gc-vt li{
+		height:50px !important}
+		
+	 .gc-thumbs-area {
+			height:auto !important}
+			
+			.glass-case ul {
+			height:auto !important}
+			
+			.gc-display-area{
+			height:325px !important}
+			
+			
+			
+	.mobilbanner35 {
+		width:80%; 
+		height:auto; margin:0 auto }	 	
+.arama{
+	margin-top:20px}
+.homebg { 
+	height:auto; }
+	
+	
+	
+.ilaniduzenle .aramayap3{
+	width:49%;
+	text-align:center;
+
+}	
+		
+		
+        .detailresim {
+     height:60px !important}
+	.c-left2-5 {
+    float: right;
+    width:96%;
+    margin-left:0;
+    padding: 2% 2% 2% 2%;
+    margin-top:5px;
+	text-align:center
+}
+.c-left2{
+	width:100%}
+
+.c-right2-reklamver{
+	width:100%;
+	margin-top:15px}
+.odeme-ilanver .adsoyad{
+	width:100% !important}
+
+.buttonlar{
+	width:98% !important;
+	height:auto;
+	margin:0 auto;
+	float:none}	
+.buttonlar .aramayap3{
+	height:auto;
+	margin:3px auto;
+	float:none;
+	font-size:10px;
+	padding:6px 10px 6px 10px;
+
+}	
+.buttonlar .aramayap4{
+	height:auto;
+	margin:3px auto;
+	float:none;
+	font-size:10px;	padding:6px 10px 6px 10px;
+}	
+.ilanver{
+	width:98%;
+	margin-right:0;
+	height:auto;
+	margin-bottom:15px
+}
+.ilanver2{
+	width:98%;
+	margin-right:0;
+	height:auto;
+	padding-bottom:20px;
+}
+.ilanver2 img{
+	margin-top:20px
+}			
+.center3{
+	width:100%;
+
+	}
+
+	.detailleft{
+	width:100%;
+	float:none;
+	margin-right:auto;
+	margin-left:auto}
+
+
+        .detailleft img {
+        max-width:100%;height:auto}
+
+
+.detailright{
+	width:100%;
+	margin-right:0;
+	margin-top:25px;}
+.detailright2{
+	width:100%;
+	margin-top:25px;
+}
+
+	.sonilanlar{
+	width:95%;
+	margin-left:1%;
+	margin-right:1%
+}
+.ilanlar img{
+	height:170px;
+	margin-bottom:5px;
+}
+.banner .ilanlar img{
+	height:170px;
+	margin-bottom:5px;
+}
+.ilanlar{
+	width:47.6%;
+	margin-right:1% !important;
+	margin-left:1% !important;
+}
+.banner .ilanlar{
+	width:48%;
+	margin-right:1%;
+	margin-left:1%;
+}
+.f-left1 .tel{
+	width:100%;
+}
+.sonilanlar .ilanleft{
+	float:left;
+	width:49%;
+	height:auto;
+	padding-right:1%;
+	
+}
+.sonilanlar .ilan{
+	float:left;
+	width:49%;
+	height:auto;
+	padding-right:1%;
+	
+}
+.uyeolbasliklar{
+	width:23%;
+	height:auto;
+	float:left;
+	padding:1% 1% 1% 0;
+	font-size:11px;
+	line-height:17px;
+	height:125px
+}
+.right0{
+	margin-right:0 !important;
+	width:24%
+}
+.uyresim{
+	margin-right:0px;
+	margin-left:0px;
+	margin-bottom:10px;
+	margin-top:10px;
+	float:none
+}
+.uyeol .left{
+	width:99%;
+	}
+.uyeol .right{
+	width:99%;
+	}
+.uyeol .center2{
+	width:99%;
+	}
+.giris{
+	float:left;
+	width:93%;
+	height:auto;
+	padding:3%;
+	margin-top:15px
+}
+.rakam{
+	width:35px;
+	height:32px;
+	text-align:center;
+	margin-bottom:8px;
+	font-size:19px
+}
+
+.banka img{
+	margin-left:3px}
+	
+	.ilanionecikar{
+	margin-right:0;
+}
+.mesajleft{
+	width:100%;
+	float:left;
+	height:auto;
+	margin-right:0%;}
+.mesajleft div{
+	width:20%;
+	margin-right:5px;
+	float:left
+}
+.mesajright{
+	width:98%;}	
+
+.baslik-d {
+	width:auto;
+	padding:6px 6px;
+	height:auto;
+	border-top-left-radius:5px;
+	border-top-right-radius:5px;
+	text-align:center;
+	float:left;
+	margin-right:2px;
+	font-size:10px
+	}
+
+.baslik-d0 {
+	margin-right:0 !important;
+
+	}
+.mrightisim{
+	display:none
+}
+	
+.ilaniduzenle{
+	width:100%;
+	height:auto;
+	margin:0 auto 7px auto !important;
+	}
+.aramayap3-8{
+	padding:9px 15px 9px 15px !important;
+	font-size:11px
+}
+#flip-navigation3 li a{
+	padding:3px 5px 3px 5px !important;
+	font-size:10px !important;
+
+}
+#flip-navigation3{ margin:0 !important
+
+}
+.aygirfoto{
+	width:19%;
+	height:80px;
+	float:left;
+	margin:0 1% 1% 0	}
+.video{
+	width:100%;
+	height:250px;}
+
+.banaozelbuton8 {
+height:auto;
+
+}
+
+.iletisimleft{
+	width:100%;
+}
+.iletisimright{
+	width:100%;
+	margin-top:25px
+}
+.arama2{
+	width:100%}
+.arama1{
+	width:100%;
+	margin-top:5px}
+.arama3{
+	width:100%;
+	margin-top:5px}
+.aramayap45{
+	width:100%;
+	margin-bottom:5px;
+	padding:8px 0 8px 0
+	}.fancybox-iframe{
+	width:100% !important;
+	height:250px !important }
+.fancybox-inner{
+	height:auto !important
+	}
+	
+	.ilaniduzenle .aramayap3-8{
+	padding:10px 0 !important
+
+}		.zatenhesap {
+	
+	padding:50px 0;
+	margin-top:0}
+	
+  .kaydir {
+	  display: inline-block;
+	  font-size:22px; margin:20px auto 0 auto}
+  .kaydir i { 
+	  font-size:32px !important; color:#ccc }
+	  
+	 
+	 .tab-content {
+ 
+	top:42px;  
+}
+	
+	.aygirheader a {
+		font-size:10px;
+		padding:12px 10px}
+		
+		
+.aygir34left { 
+    width: 92%; 
+}
+.aygirlar34 {
+	width:100%; margin-right:0; font-size:12px}
+.aygirlar34right a {
+    font-size: 12px;
+    margin-top: 5px;
+}
+.tablemobile {
+	font-size:10px !important; padding:0}
+.tablemobile td {  padding:0 !important}
+
+.tablemobile7 {
+	font-size:7px !important; padding:0}
+.tablemobile7 td {  padding:0 !important}
+
+.videoaygir {
+	height:228px !important}
+.videogalerii {
+	width:100%;
+	margin:1% 0}
+	
+	.fw_al_002_slide > p {
+		font-size:10px !important; line-height:12px !important; }
+		
+		.pt-50{padding-top:15px}
+		 .yarisrekorlari {  float:left;padding:15px 0; margin:20px 0 0 0;}
+}
+
+@media only screen and (max-width:470px) {
+	
+	
+.ilaniduzenle .aramayap3{
+	width:49.5%;
+	text-align:center;
+
+}
+
+.ilaniduzenle .aramayap3-8{
+	padding:10px 0 !important
+
+}		
+	.ilaniduzenle .aramayap3-u{ margin-left:1%}		
+
+
+
+    .ilanucretleri li {
+        width: 96%;
+        height: auto;
+        border-top: 1px solid #ccc;
+        margin-bottom: 5%;
+    }
+
+    .sonilanlar .ilan{
+	float:left;
+	width:100%;
+	height:auto;
+	padding-right:0;
+	
+}
+        .detailresim {
+     height:50px !important}
+	.aygirfoto{
+	width:19%;
+	height:50px;
+	float:left;
+	margin:0 1% 1% 0	}
+.video{
+	width:100%;
+	height:250px;}
+#flip-navigation3 li a{
+ 	font-size:11px !important;
+
+}.mesajleft div{
+	width:38%;
+	margin-right:2%;
+	float:left;
+	padding:3px 0 3px 2%
+}
+
+	.baslik-d {
+	padding:6px 4px;
+	margin-right:2px;
+	font-size:8px
+	}
+.uyeolbasliklar2{
+	height:80px !important;
+	font-size:11px	
+}
+	.right0{
+	margin-right:0 !important;
+	width:23%
+}
+	.uyeolbasliklar{
+	height:150px
+}
+	
+.ilanlar img{
+	height:120px;
+	margin-bottom:5px;
+}
+	.c-button{
+
+	right:12px !important;
+}
+.kartno {
+	width:21% !important;
+	padding:11px 0;
+	margin-right:1%;
+	font-size:13px;
+	background:#FFF !important;
+	border:1px solid #eaeaea;
+	color:#999;
+	text-align:center;
+	margin-bottom:5px
+}	
+.c-left .adsoyad {
+	width:93% !important}
+
+.mobilefiyat{
+	width:100%;
+	height:auto;
+	margin-top:15px;
+	display:inline}
+.fancybox-iframe{
+	width:100% !important;
+	height:auto !important }
+.fancybox-inner{
+	height:auto !important
+	}
+
+}
