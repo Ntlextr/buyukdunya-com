@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BÜYÜKDÜNYA</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color:#1a1a1a; background:#fff; line-height:1.6; }
+  a { text-decoration:none; color:inherit; }
+  img { max-width:100%; display:block; }
+
+  /* Header */
+  header { position:fixed; top:0; left:0; width:100%; z-index:1000; background:rgba(16,36,20,0.92); backdrop-filter:blur(4px); }
+  .nav-wrap { max-width:1100px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:14px 20px; }
+  .logo { color:#fff; font-size:20px; font-weight:800; letter-spacing:1px; }
+  nav { display:flex; gap:22px; flex-wrap:wrap; }
+  nav a { color:#d9e6da; font-size:13px; letter-spacing:0.5px; text-transform:uppercase; }
+  nav a:hover { color:#9fd9ab; }
+  @media (max-width:800px){ nav { display:none; } }
+
+  /* Hero */
+  .hero { position:relative; height:92vh; min-height:480px; background:linear-gradient(180deg, rgba(10,20,12,0.35), rgba(10,20,12,0.75)), url('aygirlar/images/slider2.jpg') center/cover no-repeat; display:flex; align-items:center; }
+  .hero-inner { max-width:1100px; margin:0 auto; padding:0 20px; color:#fff; }
+  .hero-eyebrow { font-size:13px; letter-spacing:3px; text-transform:uppercase; color:#9fd9ab; margin-bottom:14px; }
+  .hero h1 { font-size:clamp(42px, 8vw, 88px); font-weight:800; letter-spacing:1px; margin-bottom:12px; }
+  .hero-tagline { font-size:clamp(16px,2.4vw,22px); color:#e8f0e9; max-width:600px; font-weight:300; }
+  .hero-cta { margin-top:28px; display:flex; gap:14px; flex-wrap:wrap; }
+  .btn { display:inline-block; padding:13px 28px; border-radius:30px; font-size:14px; font-weight:600; letter-spacing:0.5px; }
+  .btn-primary { background:#25D366; color:#fff; }
+  .btn-outline { border:1px solid #fff; color:#fff; }
+
+  /* Stat strip */
+  .stat-strip { background:#102414; padding:30px 20px; }
+  .stat-grid { max-width:1100px; margin:0 auto; display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center; gap:20px; }
+  .stat-item { color:#fff; min-width:140px; }
+  .stat-num { font-size:30px; font-weight:800; color:#9fd9ab; }
+  .stat-label { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#cfe3d1; margin-top:4px; }
+
+  /* Sections */
+  section { padding:70px 20px; max-width:1100px; margin:0 auto; }
+  .sec-title { font-size:28px; font-weight:800; color:#102414; margin-bottom:8px; }
+  .sec-line { width:50px; height:3px; background:#25D366; margin-bottom:34px; }
+  .section-alt { background:#f6f8f6; }
+
+  .about-text { font-size:15px; color:#333; column-count:1; }
+  .about-text p { margin-bottom:14px; text-align:justify; }
+
+  /* Gelismeler */
+  .gel-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:20px; }
+  .gel-card { background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 3px 14px rgba(0,0,0,0.07); }
+  .gel-card img { width:100%; height:180px; object-fit:cover; }
+  .gel-body { padding:18px; }
+  .gel-tarih { font-size:12px; color:#25D366; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+  .gel-baslik { font-size:17px; font-weight:700; margin:6px 0 8px; color:#102414; }
+  .gel-icerik { font-size:14px; color:#555; }
+
+  /* Galeri */
+  .gal-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:14px; }
+  .gal-item { border-radius:8px; overflow:hidden; aspect-ratio:4/3; }
+  .gal-item img, .gal-item video { width:100%; height:100%; object-fit:cover; }
+
+  /* Kisraklar */
+  .kis-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:20px; }
+  .kis-card { background:#fff; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.07); padding:18px; display:flex; gap:16px; }
+  .kis-card img { width:90px; height:90px; object-fit:cover; border-radius:8px; flex-shrink:0; }
+  .kis-adi { font-weight:700; color:#102414; font-size:16px; }
+  .kis-sahip { font-size:12px; color:#25D366; font-weight:700; }
+  .kis-aciklama { font-size:13px; color:#555; margin-top:4px; }
+
+  .bos-icerik { color:#999; font-style:italic; }
+
+  /* Pedigree */
+  .pedigree-box img { border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.1); }
+
+  /* Talep form */
+  .talep-form { max-width:520px; display:flex; flex-direction:column; gap:12px; }
+  .talep-form input, .talep-form textarea { padding:13px 16px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; }
+  .talep-form textarea { min-height:90px; }
+  .talep-form button { background:#102414; color:#fff; border:none; padding:13px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+  #talep-msg { font-size:14px; }
+
+  footer { background:#102414; color:#cfe3d1; text-align:center; padding:30px 20px; font-size:13px; }
+
+  .whatsapp-float {
+    position: fixed; bottom: 20px; right: 20px; background:#25D366; width:56px; height:56px;
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:9999;
+  }
+</style>
+</head>
+<body>
+
+<a href="https://wa.me/905324082999" target="_blank" class="whatsapp-float" aria-label="WhatsApp">
+  <svg viewBox="0 0 32 32" width="30" height="30" fill="#ffffff"><path d="M16.004 3C9.096 3 3.5 8.596 3.5 15.504c0 2.59.766 4.998 2.08 7.018L4 29l6.676-1.75a12.42 12.42 0 0 0 5.328 1.25h.004c6.908 0 12.504-5.596 12.504-12.504S22.912 3 16.004 3zm0 22.77c-1.77 0-3.49-.47-4.996-1.36l-.358-.213-3.956 1.036 1.057-3.855-.233-.396a10.37 10.37 0 0 1-1.588-5.478c0-5.75 4.676-10.426 10.078-10.426 5.4 0 10.077 4.676 10.077 10.426 0 5.75-4.676 10.266-10.08 10.266zm5.74-7.65c-.314-.157-1.86-.918-2.148-1.023-.288-.105-.498-.157-.708.157-.21.313-.812 1.023-.995 1.233-.183.21-.366.236-.68.08-1.837-.918-3.04-1.64-4.25-3.72-.321-.552.321-.513.918-1.706.1-.21.05-.393-.052-.55-.105-.157-.708-1.706-.97-2.33-.26-.628-.524-.543-.708-.552-.183-.01-.393-.01-.602-.01-.21 0-.55.078-.838.392-.288.313-1.1 1.075-1.1 2.622 0 1.546 1.126 3.04 1.283 3.25.157.21 2.162 3.302 5.24 4.5 2.597.995 3.125.797 3.69.746.566-.052 1.86-.76 2.123-1.495.262-.734.262-1.363.183-1.495-.078-.13-.288-.21-.602-.366z"/></svg>
+</a>
+
+<header>
+  <div class="nav-wrap">
+    <div class="logo">BÜYÜKDÜNYA</div>
+    <nav>
+      <a href="#hakkinda" class="js-scroll">Hakkında</a>
+      <a href="#gelismeler" class="js-scroll">Gelişmeler</a>
+      <a href="#galeri" class="js-scroll">Galeri</a>
+      <a href="#kisraklar" class="js-scroll">Kısraklar</a>
+      <a href="#pedigree" class="js-scroll">Pedigree</a>
+      <a href="#talep" class="js-scroll">Talep</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Mahmudiye Beşir Kaya Harası</div>
+    <h1>BÜYÜKDÜNYA</h1>
+    <div class="hero-tagline">2026 aşım sezonunda damızlık hizmetinde — güçlü soy ağacı, kanıtlanmış yarış performansı.</div>
+    <div class="hero-cta">
+      <a href="#talep" class="btn btn-primary js-scroll">Talepte Bulun</a>
+      <a href="#hakkinda" class="btn btn-outline js-scroll">Devamını Oku</a>
+    </div>
+  </div>
+</div>
+
+<div class="stat-strip">
+  <div class="stat-grid">
+    <!--STATS_START-->
+    <div class="stat-item"><div class="stat-num">32</div><div class="stat-label">Yarış</div></div>
+    <div class="stat-item"><div class="stat-num">16</div><div class="stat-label">Birincilik</div></div>
+    <div class="stat-item"><div class="stat-num">2</div><div class="stat-label">Grup Koşu Birinciliği</div></div>
+    <div class="stat-item"><div class="stat-num">11</div><div class="stat-label">KV Birinciliği</div></div>
+    <!--STATS_END-->
+  </div>
+</div>
+
+<section id="hakkinda">
+  <div class="sec-title">Hakkında</div>
+  <div class="sec-line"></div>
+  <div class="about-text">
+    <p><strong>2026 Aşım Sezonunda Mahmudiye Beşir Kaya Harasında Hizmet Verecektir.</strong></p>
+    <p>Büyükdünya, köklü ve değerli bir soy ağacına sahip, yarış pistinde kanıtlanmış performansıyla dikkat çeken bir damızlık aygırdır. Detaylı pedigri analizi için aşağıdaki Pedigree bölümüne bakabilirsiniz.</p>
+  </div>
+</section>
+
+<section id="gelismeler" class="section-alt">
+  <div class="sec-title">Gelişmeler</div>
+  <div class="sec-line"></div>
+  <div class="gel-grid"><!--NEWS_START--><!--NEWS_END--></div>
+</section>
+
+<section id="galeri">
+  <div class="sec-title">Galeri</div>
+  <div class="sec-line"></div>
+  <div class="gal-grid"><!--GALLERY_START--><!--GALLERY_END--></div>
+</section>
+
+<section id="kisraklar" class="section-alt">
+  <div class="sec-title">Eşleşen Kısraklar</div>
+  <div class="sec-line"></div>
+  <div class="kis-grid"><!--KISRAK_START--><!--KISRAK_END--></div>
+</section>
+
+<section id="pedigree" class="pedigree-box">
+  <div class="sec-title">Pedigree</div>
+  <div class="sec-line"></div>
+  <img src="pedigree2.jpg" alt="Büyükdünya Pedigree">
+</section>
+
+<section id="talep" class="section-alt">
+  <div class="sec-title">Talep Formu</div>
+  <div class="sec-line"></div>
+  <p style="margin-bottom:18px; color:#555;">Büyükdünya için eşleşme talebinde bulunmak isterseniz aşağıdaki formu doldurun, size dönüş yapalım.</p>
+  <form id="talep-form" class="talep-form" onsubmit="return false;">
+    <input type="text" id="t-ad" placeholder="Ad Soyad" required>
+    <input type="text" id="t-telefon" placeholder="Telefon" required>
+    <input type="text" id="t-kisrak" placeholder="Kısrak bilgisi (isim/soy)">
+    <textarea id="t-mesaj" placeholder="Mesajınız"></textarea>
+    <button type="button" onclick="talepGonder()">Gönder</button>
+    <div id="talep-msg"></div>
+  </form>
+</section>
+
+<footer>
+  BÜYÜKDÜNYA — Mahmudiye Beşir Kaya Harası &middot; WhatsApp: 0532 408 29 99
+</footer>
+
+<script>
+document.querySelectorAll(".js-scroll").forEach(function(el){
+  el.addEventListener("click", function(e){
+    e.preventDefault();
+    var target = document.querySelector(el.getAttribute("href"));
+    if (target) target.scrollIntoView({ behavior:"smooth", block:"start" });
+  });
+});
+
+function talepGonder() {
+  var ad = document.getElementById("t-ad").value.trim();
+  var telefon = document.getElementById("t-telefon").value.trim();
+  var kisrak = document.getElementById("t-kisrak").value.trim();
+  var mesaj = document.getElementById("t-mesaj").value.trim();
+  var msgEl = document.getElementById("talep-msg");
+  if (!ad || !telefon) {
+    msgEl.textContent = "Ad soyad ve telefon gerekli.";
+    msgEl.style.color = "#c0392b";
+    return;
+  }
+  fetch("/api/talep-gonder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ad_soyad: ad, telefon: telefon, kisrak_bilgisi: kisrak, mesaj: mesaj })
+  }).then(function(r) {
+    if (r.ok) {
+      msgEl.textContent = "Talebiniz alındı, en kısa sürede dönüş yapılacaktır.";
+      msgEl.style.color = "#1e7e34";
+      document.getElementById("talep-form").reset();
+    } else {
+      msgEl.textContent = "Bir hata oluştu, lütfen tekrar deneyin.";
+      msgEl.style.color = "#c0392b";
+    }
+  }).catch(function() {
+    msgEl.textContent = "Bir hata oluştu, lütfen tekrar deneyin.";
+    msgEl.style.color = "#c0392b";
+  });
+}
+</script>
+</body>
+</html>

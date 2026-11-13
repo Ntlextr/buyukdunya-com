@@ -617,6 +617,7 @@ export default {
     // --- Public site ---
     if (path === "/" || path === "") path = "/index.html";
     if (path === "/index.html") return servePublicPage(path, env);
+    if (path === "/test1") return servePublicPage("/index_test1.html", env);
     return serveStaticAsset(path);
   },
 };
