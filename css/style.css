@@ -2734,3 +2734,21 @@ width:50%;
 @media (max-width:768px){
   .kisrak-kart img { width:100%; float:none; margin:0 0 10px 0; }
 }
+
+/* WhatsApp sabit buton */
+.whatsapp-float {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #25D366;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  z-index: 9999;
+  transition: transform 0.2s;
+}
+.whatsapp-float:hover { transform: scale(1.08); }
