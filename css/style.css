@@ -2717,3 +2717,20 @@ width:50%;
   .galeri-item { width:98%; }
   .gelisme-kart img { width:100%; float:none; margin:0 0 10px 0; }
 }
+
+/* Kisraklar & Talep formu */
+.kisrak-liste { width:100%; overflow:hidden; }
+.kisrak-kart { width:100%; background:#f2f2f2; border-radius:4px; margin-bottom:15px; padding:20px; overflow:hidden; }
+.kisrak-kart img { width:180px; height:auto; float:left; margin-right:20px; border-radius:4px; }
+.kisrak-adi { font-size:18px; font-weight:bold; color:#262626; margin-bottom:4px; }
+.kisrak-sahip { font-size:13px; color:#47952a; font-weight:bold; margin-bottom:8px; display:block; }
+.kisrak-aciklama { font-size:14px; color:#444; line-height:1.5; }
+.kisrak-tay { font-size:13px; color:#262626; margin-top:8px; font-style:italic; }
+.talep-form { max-width:500px; }
+.talep-form input, .talep-form textarea { width:100%; padding:10px; margin-bottom:10px; border:1px solid #ccc; border-radius:4px; font-size:14px; box-sizing:border-box; }
+.talep-form textarea { min-height:80px; }
+.talep-form button { background:#47952a; color:#fff; border:none; padding:10px 24px; border-radius:4px; font-size:14px; cursor:pointer; }
+#talep-msg { margin-top:10px; font-size:14px; }
+@media (max-width:768px){
+  .kisrak-kart img { width:100%; float:none; margin:0 0 10px 0; }
+}

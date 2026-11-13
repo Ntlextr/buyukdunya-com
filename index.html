@@ -59,6 +59,10 @@
 
 	<a href="index.html#gelismeler-aygir" class="js-scroll-to">Gelişmeler</a>
 
+	<a href="index.html#kisraklar-aygir" class="js-scroll-to">Kısraklar</a>
+
+	<a href="index.html#talep-aygir" class="js-scroll-to">Talep Formu</a>
+
    <a href="index.html#yarisrekorlari-aygir" class="js-scroll-to">Yarış Rekorları</a>
   
     <a href="index.html#hakkinda-aygir" class="js-scroll-to">Hakkında</a>
@@ -424,6 +428,34 @@ güçlendirir.<br />
     <div class="clear"></div>
 
 
+    <div id="kisraklar-aygir" class="pt-50">
+      <div class="content">
+        <div class="videogaleribaslik"><h3>Eşleşen Kısraklar</h3></div>
+        <div class="kisrak-liste"><!--KISRAK_START--><!--KISRAK_END--></div>
+      </div>
+    </div>
+
+    <div class="clear"></div>
+
+
+    <div id="talep-aygir" class="pt-50">
+      <div class="content">
+        <div class="videogaleribaslik"><h3>Talep Formu</h3></div>
+        <p style="padding:0 0 15px 0;">Büyükdünya için eşleşme talebinde bulunmak isterseniz aşağıdaki formu doldurun, size dönüş yapalım.</p>
+        <form id="talep-form" class="talep-form" onsubmit="return false;">
+          <input type="text" id="t-ad" placeholder="Ad Soyad" required>
+          <input type="text" id="t-telefon" placeholder="Telefon" required>
+          <input type="text" id="t-kisrak" placeholder="Kısrak bilgisi (isim/soy)">
+          <textarea id="t-mesaj" placeholder="Mesajınız"></textarea>
+          <button type="button" onclick="talepGonder()">Gönder</button>
+          <div id="talep-msg"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="clear"></div>
+
+
     <div id="pedigree-aygir" class="pt-50">
     
     <div class="content">
@@ -525,6 +557,38 @@ güçlendirir.<br />
     }, 500);
   });
 });
+    </script>
+
+    <script type="text/javascript">
+    function talepGonder() {
+      var ad = document.getElementById("t-ad").value.trim();
+      var telefon = document.getElementById("t-telefon").value.trim();
+      var kisrak = document.getElementById("t-kisrak").value.trim();
+      var mesaj = document.getElementById("t-mesaj").value.trim();
+      var msgEl = document.getElementById("talep-msg");
+      if (!ad || !telefon) {
+        msgEl.textContent = "Ad soyad ve telefon gerekli.";
+        msgEl.style.color = "#c0392b";
+        return;
+      }
+      fetch("/api/talep-gonder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ad_soyad: ad, telefon: telefon, kisrak_bilgisi: kisrak, mesaj: mesaj })
+      }).then(function(r) {
+        if (r.ok) {
+          msgEl.textContent = "Talebiniz alındı, en kısa sürede dönüş yapılacaktır.";
+          msgEl.style.color = "#1e7e34";
+          document.getElementById("talep-form").reset();
+        } else {
+          msgEl.textContent = "Bir hata oluştu, lütfen tekrar deneyin.";
+          msgEl.style.color = "#c0392b";
+        }
+      }).catch(function() {
+        msgEl.textContent = "Bir hata oluştu, lütfen tekrar deneyin.";
+        msgEl.style.color = "#c0392b";
+      });
+    }
     </script>
     
     
