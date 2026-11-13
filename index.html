@@ -493,7 +493,8 @@ güçlendirir.<br />
         $(function() {
 
   $(".js-scroll-to").click(function(e) {
-    var destination = $(this).attr('href');
+    var href = $(this).attr('href');
+    var destination = '#' + href.split('#')[1];
     e.preventDefault();
     $('html, body').animate({
       scrollTop: $(destination).offset().top-100
