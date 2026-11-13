@@ -2701,3 +2701,19 @@ width:50%;
 .aygir34left { background:rgb(255,255,255, 0.9); width:40%; height:auto; padding:4%; font-size:14px; color:#000; font-weight:400; text-align:justify
 	} .aygir34left h1 {font-size:30px; font-weight:bold; color:#000;
 	} 
+/* Gelismeler & Galeri - panel icerik bolumleri */
+.galeri-grid { width:100%; overflow:hidden; }
+.galeri-item { width:31%; height:auto; float:left; margin:1%; text-align:center; background:#f2f2f2; border-radius:4px; overflow:hidden; }
+.galeri-item img, .galeri-item video { width:100%; height:200px; object-fit:cover; display:block; }
+.galeri-item span { display:block; padding:8px; font-size:13px; color:#262626; }
+.gelismeler-liste { width:100%; overflow:hidden; }
+.gelisme-kart { width:100%; background:#f2f2f2; border-radius:4px; margin-bottom:15px; padding:20px; overflow:hidden; }
+.gelisme-kart img { width:220px; height:auto; float:left; margin-right:20px; border-radius:4px; }
+.gelisme-tarih { color:#47952a; font-weight:bold; font-size:13px; margin-bottom:6px; display:block; }
+.gelisme-baslik { font-size:18px; font-weight:bold; color:#262626; margin-bottom:8px; }
+.gelisme-icerik { font-size:14px; color:#444; line-height:1.5; }
+.bos-icerik { color:#888; font-style:italic; padding:10px 0; }
+@media (max-width:768px){
+  .galeri-item { width:98%; }
+  .gelisme-kart img { width:100%; float:none; margin:0 0 10px 0; }
+}
