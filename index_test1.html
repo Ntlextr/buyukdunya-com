@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BÜYÜKDÜNYA</title>
+<title>BÜYÜKDÜNYA | Damızlık Yarış Aygırı - Mahmudiye Beşir Kaya Harası</title>
 <style>
   * { box-sizing: border-box; margin:0; padding:0; }
   body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color:#1a1a1a; background:#fff; line-height:1.6; }
@@ -20,8 +20,10 @@
   @media (max-width:800px){ nav { display:none; } }
 
   /* Hero */
-  .hero { position:relative; height:92vh; min-height:480px; background:linear-gradient(180deg, rgba(10,20,12,0.35), rgba(10,20,12,0.75)), url('aygirlar/images/slider2.jpg') center/cover no-repeat; display:flex; align-items:center; }
-  .hero-inner { max-width:1100px; margin:0 auto; padding:0 20px; color:#fff; }
+  .hero { position:relative; height:92vh; min-height:480px; display:flex; align-items:center; overflow:hidden; background:#102414; }
+  .hero-video { position:absolute; top:50%; left:50%; width:100%; height:100%; object-fit:cover; transform:translate(-50%,-50%); z-index:0; }
+  .hero-overlay { position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,20,12,0.35), rgba(10,20,12,0.75)); z-index:1; }
+  .hero-inner { position:relative; z-index:2; max-width:1100px; margin:0 auto; padding:0 20px; color:#fff; }
   .hero-eyebrow { font-size:13px; letter-spacing:3px; text-transform:uppercase; color:#9fd9ab; margin-bottom:14px; }
   .hero h1 { font-size:clamp(42px, 8vw, 88px); font-weight:800; letter-spacing:1px; margin-bottom:12px; }
   .hero-tagline { font-size:clamp(16px,2.4vw,22px); color:#e8f0e9; max-width:600px; font-weight:300; }
@@ -91,7 +93,7 @@
 </head>
 <body>
 
-<a href="https://wa.me/905324082999" target="_blank" class="whatsapp-float" aria-label="WhatsApp">
+<a href="https://wa.me/905324082999?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="whatsapp-float" aria-label="WhatsApp" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'float-test1'})}).catch(()=>{})"
   <svg viewBox="0 0 32 32" width="30" height="30" fill="#ffffff"><path d="M16.004 3C9.096 3 3.5 8.596 3.5 15.504c0 2.59.766 4.998 2.08 7.018L4 29l6.676-1.75a12.42 12.42 0 0 0 5.328 1.25h.004c6.908 0 12.504-5.596 12.504-12.504S22.912 3 16.004 3zm0 22.77c-1.77 0-3.49-.47-4.996-1.36l-.358-.213-3.956 1.036 1.057-3.855-.233-.396a10.37 10.37 0 0 1-1.588-5.478c0-5.75 4.676-10.426 10.078-10.426 5.4 0 10.077 4.676 10.077 10.426 0 5.75-4.676 10.266-10.08 10.266zm5.74-7.65c-.314-.157-1.86-.918-2.148-1.023-.288-.105-.498-.157-.708.157-.21.313-.812 1.023-.995 1.233-.183.21-.366.236-.68.08-1.837-.918-3.04-1.64-4.25-3.72-.321-.552.321-.513.918-1.706.1-.21.05-.393-.052-.55-.105-.157-.708-1.706-.97-2.33-.26-.628-.524-.543-.708-.552-.183-.01-.393-.01-.602-.01-.21 0-.55.078-.838.392-.288.313-1.1 1.075-1.1 2.622 0 1.546 1.126 3.04 1.283 3.25.157.21 2.162 3.302 5.24 4.5 2.597.995 3.125.797 3.69.746.566-.052 1.86-.76 2.123-1.495.262-.734.262-1.363.183-1.495-.078-.13-.288-.21-.602-.366z"/></svg>
 </a>
 
@@ -105,11 +107,16 @@
       <a href="#kisraklar" class="js-scroll">Kısraklar</a>
       <a href="#pedigree" class="js-scroll">Pedigree</a>
       <a href="#talep" class="js-scroll">Talep</a>
+      <a href="#iletisim" class="js-scroll">İletişim</a>
     </nav>
   </div>
 </header>
 
 <div class="hero">
+  <video class="hero-video" autoplay muted loop playsinline poster="aygirlar/images/slider2.jpg">
+    <source src="https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev/buyukdunya.mp4" type="video/mp4">
+  </video>
+  <div class="hero-overlay"></div>
   <div class="hero-inner">
     <div class="hero-eyebrow">Mahmudiye Beşir Kaya Harası</div>
     <h1>BÜYÜKDÜNYA</h1>
@@ -177,6 +184,19 @@
     <button type="button" onclick="talepGonder()">Gönder</button>
     <div id="talep-msg"></div>
   </form>
+</section>
+
+<section id="iletisim">
+  <div class="sec-title">İletişim</div>
+  <div class="sec-line"></div>
+  <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
+    <img src="aygirlar/images/buyuk.jpg" alt="Büyükdünya" style="width:220px; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.1);">
+    <div style="font-size:15px; color:#333;">
+      <p style="margin-bottom:8px;"><strong>Mahmudiye Beşir Kaya Harası</strong></p>
+      <p style="margin-bottom:8px;">WhatsApp / Telefon: <a href="tel:+905324082999" style="color:#25D366; font-weight:700;">0532 408 29 99</a></p>
+      <a href="https://wa.me/905324082999?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="btn btn-primary" style="background:#25D366; display:inline-block; margin-top:6px;" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'iletisim-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
+    </div>
+  </div>
 </section>
 
 <footer>
