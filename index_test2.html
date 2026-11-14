@@ -24,11 +24,13 @@
   .ticker { background:var(--navy2); color:var(--gold2); text-align:center; padding:7px 10px; font-size:12.5px; letter-spacing:.3px; margin-top:62px; }
   .burger { display:none; flex-direction:column; gap:5px; background:none; border:none; cursor:pointer; padding:6px; flex-shrink:0; }
   .burger span { width:24px; height:2px; background:#fff; display:block; }
+  .nav-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; }
+  .nav-overlay.show { display:block; }
   @media (max-width:900px){
-    nav { display:none; position:absolute; top:100%; left:0; width:100%; background:var(--navy2); flex-direction:column; gap:0; padding:8px 0; }
-    nav.open { display:flex; }
+    nav { display:flex; position:fixed; top:0; left:0; width:78%; max-width:280px; height:100vh; background:var(--navy2); flex-direction:column; gap:0; padding:70px 0 20px; transform:translateX(-100%); transition:transform .25s ease; overflow-y:auto; z-index:1001; justify-content:flex-start; }
+    nav.open { transform:translateX(0); }
     nav a { padding:13px 20px; width:100%; border-bottom:1px solid rgba(255,255,255,0.08); }
-    .burger { display:flex; }
+    .burger { display:flex; position:relative; z-index:1002; }
     .wa-pill { display:none; }
   }
 
@@ -175,6 +177,7 @@
     <button class="burger" id="burger-btn" aria-label="Menü"><span></span><span></span><span></span></button>
   </div>
 </header>
+<div class="nav-overlay" id="nav-overlay"></div>
 <div class="ticker">2027 Aşım Sezonunda Sizlerle — Kısrağınızı BÜYÜKDÜNYA ile eşleştirin</div>
 
 <div class="hero">
@@ -422,11 +425,15 @@ function togglePedigri(){
 (function(){
   var burger = document.getElementById("burger-btn");
   var nav = document.getElementById("main-nav");
+  var overlay = document.getElementById("nav-overlay");
+  function closeNav(){ nav.classList.remove("open"); overlay.classList.remove("show"); }
+  function toggleNav(){ nav.classList.toggle("open"); overlay.classList.toggle("show"); }
   if (burger && nav) {
-    burger.addEventListener("click", function(){ nav.classList.toggle("open"); });
+    burger.addEventListener("click", toggleNav);
     nav.querySelectorAll("a").forEach(function(a){
-      a.addEventListener("click", function(){ nav.classList.remove("open"); });
+      a.addEventListener("click", closeNav);
     });
+    if (overlay) overlay.addEventListener("click", closeNav);
   }
 })();
 

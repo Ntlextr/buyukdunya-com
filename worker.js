@@ -383,7 +383,7 @@ const PANEL_HTML = `<!DOCTYPE html>
       <label>Tür</label>
       <select id="g-tip"><option value="foto">Fotoğraf</option><option value="video">Video</option></select>
       <label>Dosya</label>
-      <input type="file" id="g-dosya" accept="image/*,video/*">
+      <input type="file" id="g-dosya" accept="image/*,video/*" multiple>
       <label>Başlık (opsiyonel)</label>
       <input type="text" id="g-baslik">
       <button onclick="addGallery()">Ekle</button>
@@ -611,6 +611,37 @@ function resizeImageFile(file, maxW, maxH) {
   });
 }
 
+// Galeri gibi çok sayıda görselin yükleneceği yerlerde: orijinal boyut/format
+// ne olursa olsun belirtilen maksimum ölçüye küçültüp WebP'ye çevirir.
+function resizeToWebp(file, maxW, maxH, quality) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const ratio = Math.min(maxW / w, maxH / h, 1);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (!blob) { resolve(file); return; }
+          const isWebp = blob.type === "image/webp";
+          const ext = isWebp ? ".webp" : ".jpg";
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ext, { type: blob.type || "image/jpeg" }));
+        }, "image/webp", quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
+
 async function addNews() {
   try {
     let foto_url = "";
@@ -694,16 +725,19 @@ async function deleteYarisGecmisi(id) {
 async function addGallery() {
   try {
     const fileInput = document.getElementById("g-dosya");
-    if (!fileInput.files[0]) { showMsg("gallery-msg", "Dosya seçin", false); return; }
-    const url = await uploadFile(fileInput.files[0]);
-    const body = {
-      tip: document.getElementById("g-tip").value,
-      url,
-      baslik: document.getElementById("g-baslik").value,
-    };
-    const r = await fetch("/api/gallery", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
-    showMsg("gallery-msg", r.ok ? "Eklendi" : "Hata oluştu", r.ok);
-    if (r.ok) {
+    if (!fileInput.files.length) { showMsg("gallery-msg", "Dosya seçin", false); return; }
+    const tip = document.getElementById("g-tip").value;
+    const baslik = document.getElementById("g-baslik").value;
+    let basarili = 0;
+    for (const dosya of fileInput.files) {
+      const f = tip === "foto" ? await resizeToWebp(dosya, 1600, 1600, 0.82) : dosya;
+      const url = await uploadFile(f);
+      const body = { tip, url, baslik };
+      const r = await fetch("/api/gallery", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+      if (r.ok) basarili++;
+    }
+    showMsg("gallery-msg", basarili + " dosya eklendi", basarili > 0);
+    if (basarili > 0) {
       fileInput.value = "";
       document.getElementById("g-baslik").value = "";
       loadGallery();
