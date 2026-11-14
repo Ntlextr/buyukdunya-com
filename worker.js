@@ -159,7 +159,7 @@ async function hareketYaz(env, k, tur, sekme, detay) {
 }
 
 // Başarılı yazma isteğinin okunur adı
-const ISLEM_KONU = { "profile": "Yarış sayaçları", "news": "Haber", "yaris-gecmisi": "Yarış geçmişi", "gallery": "Galeri resmi", "kisrak": "Kısrak", "site-icerik": "Site metinleri / ayarları", "upload": "Dosya yükleme", "rapor": "Rapor bölümü", "rapor-pdf": "Rapor PDF", "sahli-ai": "Şahlı AI'ya soru", "talepler": "Talep", "sifre": "Kendi şifresi" };
+const ISLEM_KONU = { "profile": "Yarış sayaçları", "news": "Haber", "yaris-gecmisi": "Yarış geçmişi", "gallery": "Galeri resmi", "kisrak": "Kısrak", "kisrak-pdf": "Kısrak analiz PDF'i", "site-icerik": "Site metinleri / ayarları", "upload": "Dosya yükleme", "rapor": "Rapor bölümü", "rapor-pdf": "Rapor PDF", "sahli-ai": "Şahlı AI'ya soru", "talepler": "Talep", "sifre": "Kendi şifresi" };
 function islemAdi(method, path) {
   const p = path.split("/"); const konu = ISLEM_KONU[p[2]] || p[2];
   if (p[2] === "sahli-ai" || p[2] === "upload") return konu;
@@ -235,6 +235,52 @@ async function odakSemaHazirla(env) {
   }
   ODAK_SEMA = true;
 }
+// Kısrak analiz PDF'i (15.11.2026, Serdar: "Güven PDF olarak yüklesin, panel onu yüklesin; diğerlerini de gönderiyor").
+// PDF SADECE panelde (R2 ozel/… — /medya/ozel/ dışarıya kapalı); sitede kısrak kartında sadece ad + baba × anne + gebelik yılı.
+// Metin Workers AI toMarkdown ile çıkarılır → kısrak adı ("Büyükdünya × <ad>"), pedigri satırı, gebelik; tam metin
+// Şahlı AI'nın bilgisine girer (kısrak soruları için).
+let KISRAK_SEMA = false;
+async function kisrakSema(env) {
+  if (KISRAK_SEMA) return;
+  for (const k of ["pdf_key TEXT", "pdf_ad TEXT", "analiz_metin TEXT", "analiz_tarih TEXT"]) {
+    try { await env.DB.prepare("ALTER TABLE kisraklar ADD COLUMN " + k).run(); } catch (e) {}
+  }
+  KISRAK_SEMA = true;
+}
+async function pdfMetni(env, ad, bayt) {
+  try {
+    const r = await env.AI.toMarkdown([{ name: ad || "analiz.pdf", blob: new Blob([bayt], { type: "application/pdf" }) }]);
+    const x = Array.isArray(r) ? r[0] : r;
+    return String((x && (x.data || x.text)) || "");
+  } catch (e) { return ""; }
+}
+// Analiz metninden kısrak bilgileri. Şablon: "Büyükdünya × Mabeyn" / "Sarraf × Nur Akışı / Toşur · 2026 gebeliği · …".
+// toMarkdown bazen satırları yapıştırır ("Büyükdünya × MabeynSarraf × …") → ad, DOSYA ADIYLA (Buyukdunya_<Ad>_Pedigri_Analizi.pdf)
+// harf harf eşlenerek ayrılır; Türkçe yazımı (Dılda, Alya Eylül) metinden alınır.
+function trSade(x) { return String(x || "").toLocaleLowerCase("tr").replace(/[çğıöşüâîû]/g, (c) => ({ ç: "c", ğ: "g", ı: "i", ö: "o", ş: "s", ü: "u", â: "a", î: "i", û: "u" }[c])).replace(/[^a-z0-9]/g, ""); }
+function kisrakAyikla(metin, dosyaAdi) {
+  const t = String(metin || "").replace(/\r/g, "");
+  const dosyaAd = String(dosyaAdi || "").replace(/\.pdf$/i, "").replace(/\s*\(\d+\)$/, "").replace(/^b[uü]y[uü]kd[uü]nya[_\- ]+/i, "").replace(/[_\- ]+(pedigri|pedigree|e[sş]le[sş]me)?[_\- ]*(analizi?|raporu?)?$/i, "").replace(/[_\-]+/g, " ").trim();
+  const hedef = trSade(dosyaAd);
+  let ad = "", pedigri = "", tay = "";
+  const m = t.match(/B[üu]y[üu]kd[üu]nya\s*[×xX]\s*/i);
+  if (m) {
+    const kalan = t.slice(m.index + m[0].length);
+    let son = -1;
+    if (hedef) { for (let i = 1; i <= Math.min(80, kalan.length); i++) { if (trSade(kalan.slice(0, i)) === hedef) { son = i; break; } } }
+    if (son < 0) { const sat = kalan.split("\n")[0]; const mm = sat.match(/^(.{2,40}?)(?=[A-ZÇĞİÖŞÜ][a-zçğıöşü]+\s*[×])/); son = mm ? mm[1].length : sat.length; }
+    ad = kalan.slice(0, son).replace(/[#*_|]/g, " ").trim();
+    let geri = kalan.slice(son).replace(/^[\s\n]+/, "");
+    geri = geri.split(/E[şs]le[şs]menin dayana/i)[0].split("\n")[0];
+    const parca = geri.split(/\s*·\s*/);
+    if (parca[0] && /[×]/.test(parca[0])) { pedigri = parca[0].trim(); tay = parca.slice(1).join(" · ").trim(); }
+  }
+  if (!ad) ad = dosyaAd;
+  ad = ad.replace(/\s+/g, " ").trim().slice(0, 60);
+  if (ad && ad === ad.toLocaleLowerCase("tr")) ad = ad.charAt(0).toLocaleUpperCase("tr") + ad.slice(1);
+  return { ad, pedigri: pedigri.slice(0, 120), tay: tay.slice(0, 80) };
+}
+
 async function resimBaytlari(env, adres) {
   adres = String(adres || "");
   const m = adres.match(/\/medya\/(.+)$/);
@@ -574,7 +620,7 @@ Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 3) ⚙️ Site Ayarları: WhatsApp numarası (sitedeki tüm WhatsApp düğmeleri ve telefon bunu kullanır), Talep Formu açıklaması, footer açıklaması ve telif yazısı (telif yazısında "Seray Tekno Yazılım" geçerse otomatik link olur). Görseller: Logo (boş bırakılırsa sadece yazı görünür, "Logoyu Kaldır" düğmesi var, yüklenen logo otomatik küçültülür), "Pistten Kanıt" bölümü fotoğrafı, Pedigree görseli (boşsa görünmez), İletişim görseli ve ana sayfada dönen 5 slayt fotoğrafı. Slayt fotoğraflarında önizlemeye dokunarak atın durduğu nokta seçilir; telefonda o nokta ortada görünür (kırmızı nokta seçilen yeri gösterir). Dosya seçip en alttaki Kaydet'e basılır.
 4) 📰 Haberler: Tarih, Başlık, İçerik ve isteğe bağlı fotoğrafla haber eklenir; listeden silinir.
 5) 🖼️ Galeri: Tür (Fotoğraf/Video) seçilir, "Dosya Seç" ile aynı anda birden çok fotoğraf seçilebilir, Ekle'ye basılır. Fotoğraflar otomatik küçültülüp WebP'ye çevrilir ve dosya adı yükleme tarih-saati olur. En son eklenen galeride en başta görünür. Listeden Sil ile kaldırılır.
-6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir.
+6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir. En üstte "📄 Analiz PDF'inden kısrak ekle": eşleşme analizi PDF'i (ör. Buyukdunya_Mabeyn_Pedigri_Analizi.pdf) seçilir, istenirse aynı anda birden çok; panel PDF'i okur, kısrağın adını ("Büyükdünya × Mabeyn" satırından), baba × anne satırını ve gebelik yılını kendisi doldurur; o adda kısrak zaten varsa PDF'i ona eklenir. Listede her kısrakta "📄 Analizi aç" (PDF'i açar) ve "📄 PDF ekle / değiştir" düğmeleri vardır. PDF SİTEDE GÖRÜNMEZ, sadece panelde durur; sitede kısrak kartında ad, sahip, açıklama (baba × anne) ve tay bilgisi görünür. Fotoğraf ve sahip adı sonra eklenmek istenirse kısrak silinip yeniden eklenmez; şimdilik düzenleme yok, Serdar'a söylenir.
 7) 📑 Rapor: Aygır Analiz Raporu'nun bölümleri. Her bölümün Düzenle düğmesi vardır: Bölüm no, Etiket, Başlık, Alt başlık, "Sitede yeri" (Hakkında, Yarış Analizi, Pedigree, Eşleşme Rehberi, Damızlık ya da Sitede gösterme) ve Metin. Metin yazım kuralları: "## " ile başlayan satır ara başlık; "!! 16 / 32 | Yarış galibiyeti" rakam kutusu; içinde " | " olan alt alta satırlar tablo olur (ilk satır tablo başlığı); "- " madde; "~ " kaynak notu; **kelime** kalın; boş satır yeni paragraf; satırın başına "[gizli] " yazılırsa o satır sitede görünmez ama panelde durur. Yeni bölüm eklenebilir, silinebilir; Sıra numarası küçük olan önce gösterilir. Aynı sayfada rapor PDF'i yüklenir; sitede "Raporu İndir (PDF)" düğmesi çıkar.
 8) 📩 Talepler: Sitedeki talep formundan gelen kısrak eşleştirme talepleri (ad, telefon, kısrak, mesaj) ve WhatsApp düğmesi tıklanma sayıları.
 9) 🤖 Şahlı AI: Bu sohbet.
@@ -587,7 +633,8 @@ SIK SORULANLAR (bunları aynen bu adımlarla anlat):
 - Ana sayfadaki dönen fotoğrafı değiştirmek: ⚙️ Site Ayarları → Hero slayt görselleri → ilgili "Dosya Seç" → en alttaki Kaydet. Atın yerini ayarlamak için önizlemede atın üstüne dokun, sonra Kaydet.
 - Yarış sayısını güncellemek: 🏆 Yarış → Yarış Sayaçları → rakamları değiştir → Kaydet.
 - Raporun bir bölümünü sitede başka yere taşımak ya da kaldırmak: 📑 Rapor → Düzenle → "Sitede yeri" listesinden yeni yeri ya da "Sitede gösterme"yi seç → Kaydet.
-- Yeni PDF koymak: 📑 Rapor → Rapor PDF → Dosya seç → PDF Yükle.
+- Yeni PDF koymak: 📑 Rapor → Rapor PDF → Dosya seç → PDF Yükle. (Bu, Büyükdünya'nın kendi aygır raporu içindir.)
+- Bir kısrağın eşleşme analizi PDF'ini eklemek: Sol menü → 🐎 Kısraklar → en üstteki "📄 Analiz PDF'inden kısrak ekle" → "Dosya Seç" ile PDF'i (birden çok da olur) seç → "PDF'leri yükle". Panel kısrağı kendisi açar ya da aynı adlı kısrağa ekler. Başka bir kısrağa elle eklemek için listede o kısrağın "📄 PDF ekle / değiştir" düğmesi. WhatsApp'tan gelen PDF önce telefona kaydedilir (PDF'e dokun → üç nokta → Kaydet / İndir), sonra panelde "Dosya Seç"ten İndirilenler'den seçilir.
 - WhatsApp numarasını değiştirmek: ⚙️ Site Ayarları → WhatsApp numarası → Kaydet.`;
 
 async function sahliBaglam(env) {
@@ -601,10 +648,13 @@ async function sahliBaglam(env) {
     parca.push("YARIŞ GEÇMİŞİ:\n" + yg.map((y) => `${y.tarih} · ${y.hipodrom} · ${y.mesafe} · ${y.sonuc} · ${y.aciklama || ""}`).join("\n"));
     const say = async (t) => ((await env.DB.prepare(`SELECT COUNT(*) n FROM ${t}`).first()) || {}).n;
     parca.push(`KAYIT SAYILARI: galeri ${await say("gallery")}, haber ${await say("news")}, kısrak ${await say("kisraklar")}, talep ${await say("talepler")}.`);
+    await kisrakSema(env);
+    const ks = (await env.DB.prepare("SELECT kisrak_adi, sahip_adi, aciklama, tay_bilgisi, pdf_ad, analiz_tarih, analiz_metin FROM kisraklar ORDER BY id DESC LIMIT 30").all()).results || [];
+    if (ks.length) parca.push("KISRAKLAR (sitede sadece ad, sahip, açıklama ve tay bilgisi görünür; analiz PDF'i ve metni SADECE panelde):\n" + ks.map((k) => `--- ${k.kisrak_adi}${k.sahip_adi ? " (sahibi " + k.sahip_adi + ")" : ""} · ${k.aciklama || ""} · ${k.tay_bilgisi || ""}${k.pdf_ad ? " · analiz PDF'i: " + k.pdf_ad + " (" + (k.analiz_tarih || "") + ")" : " · analiz PDF'i yok"}${k.analiz_metin ? "\nANALİZ METNİ:\n" + String(k.analiz_metin).slice(0, 6000) : ""}`).join("\n"));
     const rb = await raporBolumleri(env);
     parca.push("AYGIR ANALİZ RAPORU (\"[gizli]\" ile başlayan satırlar sitede gösterilmiyor, sadece panelde duruyor):\n" + rb.map((b) => `--- ${b.no} / ${b.etiket} · ${b.baslik} (sitede yeri: ${(RAPOR_YERLER[b.yer] || {}).ad || b.yer})\n${b.alt || ""}\n${b.metin}`).join("\n"));
   } catch (e) {}
-  return parca.join("\n\n").slice(0, 30000);
+  return parca.join("\n\n").slice(0, 60000);
 }
 
 const PANEL_HTML = `<!DOCTYPE html>
@@ -875,6 +925,14 @@ const PANEL_HTML = `<!DOCTYPE html>
     <div class="card" data-sec="galeri">
       <h2>Galeri Listesi</h2>
       <div id="gallery-list"></div>
+    </div>
+
+    <div class="card" data-sec="kisrak">
+      <h2>📄 Analiz PDF'inden kısrak ekle</h2>
+      <div class="ipucu">Eşleşme analizi PDF'ini seçin (birden çok da olur). Panel PDF'i okur; kısrağın adını, baba × anne satırını ve gebelik yılını kendisi doldurur. O adda kısrak varsa PDF'i ona eklenir. <b>PDF sitede görünmez</b>, sadece panelde durur.</div>
+      <input type="file" id="k-pdf" accept="application/pdf,.pdf" multiple>
+      <button onclick="kisrakPdfYukle()">PDF'leri yükle</button>
+      <div id="kisrak-pdf-msg"></div>
     </div>
 
     <div class="card" data-sec="kisrak">
@@ -1573,13 +1631,56 @@ async function addKisrak() {
 async function loadKisrak() {
   const items = await (await fetch("/api/kisrak")).json();
   const el = document.getElementById("kisrak-list");
-  el.innerHTML = items.map(k => \`
-    <div class="item">
-      \${k.foto_url ? '<img src="' + k.foto_url + '">' : ''}
-      <strong>\${k.kisrak_adi}</strong>\${k.sahip_adi ? ' — ' + k.sahip_adi : ''}<br>
-      <small>\${k.aciklama || ''}</small><br>
-      <button class="danger" onclick="deleteKisrak(\${k.id})">Sil</button>
-    </div>\`).join("") || "<p>Henüz kısrak yok.</p>";
+  el.innerHTML = items.map(function (k) {
+    return '<div class="item">'
+      + (k.foto_url ? '<img src="' + k.foto_url + '">' : '')
+      + '<strong>' + kEsc(k.kisrak_adi) + '</strong>' + (k.sahip_adi ? ' — ' + kEsc(k.sahip_adi) : '') + '<br>'
+      + '<small>' + kEsc(k.aciklama || '') + (k.tay_bilgisi ? ' · ' + kEsc(k.tay_bilgisi) : '') + '</small><br>'
+      + (k.pdf_var ? '<small>📄 ' + kEsc(k.pdf_ad || 'Analiz') + (k.analiz_tarih ? ' · ' + kEsc(k.analiz_tarih) : '') + ' · <i>sadece panelde</i></small><br>' : '')
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
+      + (k.pdf_var ? '<a class="secondary" style="padding:8px 12px;border-radius:8px;text-decoration:none" target="_blank" href="/api/kisrak-pdf/' + k.id + '">📄 Analizi aç</a>' : '')
+      + '<button class="secondary" onclick="kisrakPdfSec(' + k.id + ')">📄 ' + (k.pdf_var ? 'PDF değiştir' : 'PDF ekle') + '</button>'
+      + (k.pdf_var ? '<button class="secondary" onclick="kisrakPdfKaldir(' + k.id + ')">PDF kaldır</button>' : '')
+      + '<button class="danger" onclick="deleteKisrak(' + k.id + ')">Sil</button></div>'
+      + '</div>';
+  }).join("") || "<p>Henüz kısrak yok.</p>";
+}
+function kEsc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+async function kisrakPdfGonder(dosya, id) {
+  const fd = new FormData(); fd.append("file", dosya); if (id) fd.append("id", id);
+  const r = await fetch("/api/kisrak-pdf", { method: "POST", body: fd });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) throw new Error(d.error || "Yüklenemedi");
+  return d;
+}
+async function kisrakPdfYukle() {
+  const inp = document.getElementById("k-pdf");
+  const l = Array.from(inp.files || []);
+  if (!l.length) { showMsg("kisrak-pdf-msg", "PDF seçin", false); return; }
+  const sat = [];
+  for (let i = 0; i < l.length; i++) {
+    document.getElementById("kisrak-pdf-msg").innerHTML = '<div class="msg">' + (i + 1) + ' / ' + l.length + ' okunuyor: ' + kEsc(l[i].name) + '…</div>';
+    try {
+      const d = await kisrakPdfGonder(l[i]);
+      sat.push("✅ " + d.kisrak_adi + (d.yeni ? " eklendi" : " — PDF eklendi") + (d.pedigri ? " (" + d.pedigri + ")" : "") + (d.metin_okundu ? "" : " · PDF'in metni okunamadı, ad dosya adından alındı"));
+    } catch (e) { sat.push("❌ " + l[i].name + ": " + e.message); }
+  }
+  document.getElementById("kisrak-pdf-msg").innerHTML = '<div class="msg">' + sat.map(kEsc).join("<br>") + '</div>';
+  inp.value = ""; loadKisrak();
+}
+function kisrakPdfSec(id) {
+  const i = document.createElement("input"); i.type = "file"; i.accept = "application/pdf,.pdf";
+  i.onchange = async function () {
+    if (!i.files[0]) return;
+    try { const d = await kisrakPdfGonder(i.files[0], id); alert("📄 " + d.kisrak_adi + " — PDF eklendi"); } catch (e) { alert(e.message); }
+    loadKisrak();
+  };
+  i.click();
+}
+async function kisrakPdfKaldir(id) {
+  if (!confirm("Bu kısrağın analiz PDF'i kaldırılsın mı?")) return;
+  await fetch("/api/kisrak-pdf/" + id, { method: "DELETE" });
+  loadKisrak();
 }
 
 async function deleteKisrak(id) {
@@ -1970,8 +2071,59 @@ const ANA_ISLEYICI = {
 
       if (path === "/api/kisrak" && request.method === "GET") {
         if (!authed) return json({ error: "unauthorized" }, 401);
-        const { results } = await env.DB.prepare("SELECT * FROM kisraklar ORDER BY id DESC").all();
+        await kisrakSema(env); await odakSemaHazirla(env);
+        const { results } = await env.DB.prepare("SELECT id, kisrak_adi, sahip_adi, aciklama, tay_bilgisi, foto_url, sira, created_at, odak, pdf_ad, analiz_tarih, (pdf_key IS NOT NULL AND pdf_key<>'') AS pdf_var FROM kisraklar ORDER BY id DESC").all();
         return json(results);
+      }
+      // Analiz PDF'i yükle: kısrak yoksa PDF'teki addan açılır, varsa (id ya da aynı ad) PDF'i eklenir/değişir
+      if (path === "/api/kisrak-pdf" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await kisrakSema(env);
+        const form = await request.formData();
+        const file = form.get("file");
+        if (!file || typeof file === "string") return json({ error: "PDF seçin" }, 400);
+        const bayt = new Uint8Array(await file.arrayBuffer());
+        if (bayt.length > 20 * 1024 * 1024) return json({ error: "PDF 20 MB'tan büyük" }, 400);
+        if (!(bayt[0] === 0x25 && bayt[1] === 0x50 && bayt[2] === 0x44 && bayt[3] === 0x46)) return json({ error: "Bu dosya PDF değil" }, 400);
+        const metin = await pdfMetni(env, file.name, bayt);
+        const b = kisrakAyikla(metin, file.name);
+        let id = Number(form.get("id")) || 0;
+        let kayit = id ? await env.DB.prepare("SELECT * FROM kisraklar WHERE id=?").bind(id).first() : null;
+        if (!kayit && b.ad) kayit = await env.DB.prepare("SELECT * FROM kisraklar WHERE kisrak_adi=? COLLATE NOCASE").bind(b.ad).first();
+        if (!kayit && !b.ad) return json({ error: "PDF'ten kısrak adı okunamadı. Önce kısrağı elle ekleyin, sonra listedeki \"📄 PDF ekle\" ile yükleyin." }, 400);
+        const key = "ozel/kisrak/" + crypto.randomUUID() + ".pdf";
+        await env.ASSETS.put(key, bayt, { httpMetadata: { contentType: "application/pdf" } });
+        const tarih = new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 16).replace("T", " ");
+        const ad = String(file.name || "analiz.pdf").slice(0, 120);
+        let yeni = false;
+        if (kayit) {
+          if (kayit.pdf_key) { try { await env.ASSETS.delete(kayit.pdf_key); } catch (e) {} }
+          await env.DB.prepare("UPDATE kisraklar SET pdf_key=?, pdf_ad=?, analiz_metin=?, analiz_tarih=?, aciklama=CASE WHEN COALESCE(aciklama,'')='' THEN ? ELSE aciklama END, tay_bilgisi=CASE WHEN COALESCE(tay_bilgisi,'')='' THEN ? ELSE tay_bilgisi END WHERE id=?")
+            .bind(key, ad, metin.slice(0, 20000), tarih, b.pedigri, b.tay, kayit.id).run();
+          id = kayit.id;
+        } else {
+          const r = await env.DB.prepare("INSERT INTO kisraklar (kisrak_adi, sahip_adi, aciklama, tay_bilgisi, foto_url, pdf_key, pdf_ad, analiz_metin, analiz_tarih) VALUES (?, '', ?, ?, '', ?, ?, ?, ?)")
+            .bind(b.ad, b.pedigri, b.tay, key, ad, metin.slice(0, 20000), tarih).run();
+          id = r.meta.last_row_id; yeni = true;
+        }
+        return json({ ok: true, id, yeni, kisrak_adi: kayit ? kayit.kisrak_adi : b.ad, pedigri: b.pedigri, tay: b.tay, metin_okundu: metin.length > 50 });
+      }
+      const kpdf = path.match(/^\/api\/kisrak-pdf\/(\d+)$/);
+      if (kpdf && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await kisrakSema(env);
+        const k = await env.DB.prepare("SELECT pdf_key, pdf_ad FROM kisraklar WHERE id=?").bind(kpdf[1]).first();
+        const o = k && k.pdf_key ? await env.ASSETS.get(k.pdf_key) : null;
+        if (!o) return new Response("PDF yok", { status: 404 });
+        return new Response(o.body, { headers: { "Content-Type": "application/pdf", "Content-Disposition": "inline; filename*=UTF-8''" + encodeURIComponent(k.pdf_ad || "analiz.pdf"), "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex" } });
+      }
+      if (kpdf && request.method === "DELETE") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await kisrakSema(env);
+        const k = await env.DB.prepare("SELECT pdf_key FROM kisraklar WHERE id=?").bind(kpdf[1]).first();
+        if (k && k.pdf_key) { try { await env.ASSETS.delete(k.pdf_key); } catch (e) {} }
+        await env.DB.prepare("UPDATE kisraklar SET pdf_key=NULL, pdf_ad=NULL, analiz_metin=NULL, analiz_tarih=NULL WHERE id=?").bind(kpdf[1]).run();
+        return json({ ok: true });
       }
       if (path === "/api/kisrak" && request.method === "POST") {
         if (!authed) return json({ error: "unauthorized" }, 401);
@@ -1984,6 +2136,9 @@ const ANA_ISLEYICI = {
       const kisrakMatch = path.match(/^\/api\/kisrak\/(\d+)$/);
       if (kisrakMatch && request.method === "DELETE") {
         if (!authed) return json({ error: "unauthorized" }, 401);
+        await kisrakSema(env);
+        const eskiK = await env.DB.prepare("SELECT pdf_key FROM kisraklar WHERE id=?").bind(kisrakMatch[1]).first();
+        if (eskiK && eskiK.pdf_key) { try { await env.ASSETS.delete(eskiK.pdf_key); } catch (e) {} }
         await env.DB.prepare("DELETE FROM kisraklar WHERE id=?").bind(kisrakMatch[1]).run();
         return json({ ok: true });
       }
@@ -2133,6 +2288,7 @@ const ANA_ISLEYICI = {
     // --- Yüklenen dosyalar (R2) kendi adresimizden: /medya/... ---
     if (path.startsWith("/medya/")) {
       const key = decodeURIComponent(path.slice(7));
+      if (key.startsWith("ozel/")) return new Response("404 Not Found", { status: 404 });
       // Parça parça okuma (Range): iPhone Safari video oynatmak için şart
       const rng = (request.headers.get("Range") || "").match(/^bytes=(\d*)-(\d*)$/);
       let obj;
