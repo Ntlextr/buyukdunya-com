@@ -1460,8 +1460,18 @@ window.fetch = function (adres, ayar) {
       ayar = ayar || {}; const h = new Headers(ayar.headers || {}); h.set("x-panel-sekme", SEKME || ""); ayar.headers = h;
     }
   } catch (e) {}
-  return _ilkFetch(adres, ayar);
+  return _ilkFetch(adres, ayar).then(function (r) {
+    // Oturum kapanmışsa (başka cihazda şifre değişti, süre doldu…) "başarısız" yerine giriş ekranı gelsin
+    if (r.status === 401 && BEN && typeof adres === "string" && adres.indexOf("/api/") === 0) oturumDustu();
+    return r;
+  });
 };
+function oturumDustu() {
+  BEN = null; canliDurdur();
+  document.getElementById("panel").classList.add("hidden");
+  document.getElementById("login-screen").classList.remove("hidden");
+  showMsg("login-msg", "Oturum kapandı, lütfen yeniden giriş yapın", false);
+}
 async function panelAc() {
   const r = await fetch("/api/ben");
   if (!r.ok) return false;
