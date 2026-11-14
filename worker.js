@@ -159,7 +159,7 @@ async function hareketYaz(env, k, tur, sekme, detay) {
 }
 
 // Başarılı yazma isteğinin okunur adı
-const ISLEM_KONU = { "profile": "Yarış sayaçları", "news": "Haber", "yaris-gecmisi": "Yarış geçmişi", "gallery": "Galeri resmi", "kisrak": "Kısrak", "kisrak-pdf": "Kısrak analiz PDF'i", "site-icerik": "Site metinleri / ayarları", "upload": "Dosya yükleme", "rapor": "Rapor bölümü", "rapor-pdf": "Rapor PDF", "sahli-ai": "Şahlı AI'ya soru", "talepler": "Talep", "sifre": "Kendi şifresi" };
+const ISLEM_KONU = { "hara": "Hara Defteri", "kullanicilar": "Kullanıcı", "yetkiler": "Yetki", "profile": "Yarış sayaçları", "news": "Haber", "yaris-gecmisi": "Yarış geçmişi", "gallery": "Galeri resmi", "kisrak": "Kısrak", "kisrak-pdf": "Kısrak analiz PDF'i", "site-icerik": "Site metinleri / ayarları", "upload": "Dosya yükleme", "rapor": "Rapor bölümü", "rapor-pdf": "Rapor PDF", "sahli-ai": "Şahlı AI'ya soru", "talepler": "Talep", "sifre": "Kendi şifresi" };
 function islemAdi(method, path) {
   const p = path.split("/"); const konu = ISLEM_KONU[p[2]] || p[2];
   if (p[2] === "sahli-ai" || p[2] === "upload") return konu;
@@ -194,6 +194,63 @@ async function merkezBiletDogrula(env, bilet) {
 function htmlCevap(baslik, metin, durum) {
   return new Response(`<!DOCTYPE html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(baslik)}</title><body style="font-family:Arial,sans-serif;max-width:420px;margin:60px auto;padding:16px"><h2>${esc(baslik)}</h2><p>${esc(metin)}</p><p><a href="/panel">Panel girişine git</a></p></body></html>`, { status: durum || 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 }
+
+
+// =====================================================================
+// ROLLER VE YETKİLER (15.11.2026, Serdar: "seyislere personel gözüyle bakıp altyapıyı yapalım:
+// kullanıcı ekleme, roller, yetkilendirme")
+// Roller: gelistirici (Developer, her şey) · yonetici (Güven, her şey; Developer'ı göremez) ·
+//         mudur (Hara Müdürü) · seyis. Müdür ve seyisin izinleri rol_izin tablosunda (Developer › 🔐 Yetkiler).
+// İzin: (sekme, ozellik) ozellik = gor | yaz | sil. API isteği yoluna göre sekmeye eşlenir (izinSekmesi):
+// GET → gor, POST/PUT → yaz, DELETE → sil. Yönetici ve Developer denetlenmez.
+// =====================================================================
+const ROLLER = ["yonetici", "mudur", "seyis"];
+const ROL_AD = { gelistirici: "Developer", yonetici: "Yönetici", mudur: "Hara Müdürü", seyis: "Seyis" };
+const IZIN_KATALOG = [
+  ["yaris", "🏆 Yarış (sayaçlar, yarış geçmişi)"], ["site", "📝 Metinler ve ⚙️ Site Ayarları"], ["haber", "📰 Haberler"],
+  ["galeri", "🖼️ Galeri"], ["kisrak", "🐎 Kısraklar (sitedeki)"], ["hara", "📒 Hara Defteri"], ["seyis", "🧑‍🌾 Seyis ekranı (yem, ilaç, bakım)"],
+  ["rapor", "📑 Rapor"], ["talep", "📩 Talepler"], ["ai", "🤖 Şahlı AI"],
+];
+const IZIN_VARSAYILAN = {
+  mudur: { hara: "gys", seyis: "gy", kisrak: "g", talep: "g", ai: "gy" },
+  seyis: { seyis: "gy" },
+};
+let IZIN_SEMA = false;
+async function izinSema(env) {
+  if (IZIN_SEMA) return;
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS rol_izin (rol TEXT NOT NULL, sekme TEXT NOT NULL, ozellik TEXT NOT NULL, acik INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (rol, sekme, ozellik))").run();
+  const ek = [];
+  for (const rol of ["mudur", "seyis"]) for (const [sekme] of IZIN_KATALOG) for (const oz of ["gor", "yaz", "sil"]) {
+    const v = (IZIN_VARSAYILAN[rol][sekme] || "").includes(oz[0]) ? 1 : 0;
+    ek.push(env.DB.prepare("INSERT OR IGNORE INTO rol_izin (rol, sekme, ozellik, acik) VALUES (?,?,?,?)").bind(rol, sekme, oz, v));
+  }
+  await env.DB.batch(ek);
+  IZIN_SEMA = true;
+}
+function tamYetkili(k) { return !!k && (k.dev || k.rol === "yonetici"); }
+// Kişinin izinleri: { sekme: { gor, yaz, sil } }
+async function izinleri(env, k) {
+  const o = {};
+  for (const [sekme] of IZIN_KATALOG) o[sekme] = { gor: tamYetkili(k), yaz: tamYetkili(k), sil: tamYetkili(k) };
+  if (!k || tamYetkili(k)) return o;
+  await izinSema(env);
+  const r = (await env.DB.prepare("SELECT sekme, ozellik, acik FROM rol_izin WHERE rol=?").bind(k.rol).all()).results || [];
+  for (const x of r) if (o[x.sekme]) o[x.sekme][x.ozellik] = !!x.acik;
+  return o;
+}
+async function izinVar(env, k, sekme, oz) {
+  if (tamYetkili(k)) return true;
+  const i = await izinleri(env, k);
+  return !!(i[sekme] && i[sekme][oz]);
+}
+// API yolu → yetki sekmesi (null: herkese açık / kendi denetimi olan uç)
+function izinSekmesi(path) {
+  const p = path.split("/")[2] || "";
+  const harita = { profile: "yaris", "yaris-gecmisi": "yaris", "site-icerik": "site", news: "haber", gallery: "galeri", kisrak: "kisrak", "kisrak-pdf": "kisrak",
+    rapor: "rapor", "rapor-onizle": "rapor", talepler: "talep", "wa-click-count": "talep", "sahli-ai": "ai" };
+  return harita[p] || null;
+}
+// --- roller ve yetkiler sonu ---
 
 // Developer'ın Canlı İzleme ekranı için: kişiler ve durumları
 async function canliKisiler(env) {
@@ -254,12 +311,15 @@ async function haraSema(env) {
   if (HARA_SEMA) return;
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS hara_at (id INTEGER PRIMARY KEY AUTOINCREMENT, ad TEXT NOT NULL, tur TEXT DEFAULT 'kendi', cins TEXT DEFAULT 'kisrak', dogum_yili TEXT, renk TEXT, baba TEXT, anne TEXT, anne_id INTEGER, sahip TEXT, telefon TEXT, gelis_nedeni TEXT, giris TEXT, cikis TEXT, cip TEXT, notlar TEXT, durum TEXT DEFAULT 'harada', olusturma TEXT DEFAULT (datetime('now')))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS hara_olay (id INTEGER PRIMARY KEY AUTOINCREMENT, at_id INTEGER NOT NULL, tip TEXT NOT NULL, tarih TEXT NOT NULL, sonuc TEXT, aciklama TEXT, kaydeden TEXT, olusturma TEXT DEFAULT (datetime('now')))`).run();
+  for (const k of ["kaydeden_id INTEGER", "foto TEXT", "zaman INTEGER"]) { try { await env.DB.prepare("ALTER TABLE hara_olay ADD COLUMN " + k).run(); } catch (e) {} }
   HARA_SEMA = true;
 }
 const HARA_TUR = ["kendi", "misafir"];
 const HARA_CINS = ["kisrak", "aygir", "tay", "diger"];
 const HARA_NEDEN = ["", "gunubirlik_asim", "gebe_kalana_kadar", "dogum", "konaklama"];
-const HARA_OLAY = ["asim", "kontrol", "dogum", "giris", "cikis", "not"];
+const HARA_OLAY = ["asim", "kontrol", "dogum", "giris", "cikis", "not", "yem", "ilac", "bakim", "gezdirme", "sorun"];
+// Seyisin girebildiği günlük bakım kayıtları (seyis.yaz yeter); diğerleri hara.yaz ister
+const HARA_BAKIM = ["yem", "ilac", "bakim", "gezdirme", "sorun", "not"];
 function haraTarih(t) { t = String(t || "").trim().slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : ""; }
 function haraMetin(t, n) { return String(t == null ? "" : t).trim().slice(0, n || 200); }
 function haraAtTemiz(b) {
@@ -681,7 +741,9 @@ Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 5) 🖼️ Galeri: Tür (Fotoğraf/Video) seçilir, "Dosya Seç" ile aynı anda birden çok fotoğraf seçilebilir, Ekle'ye basılır. Fotoğraflar otomatik küçültülüp WebP'ye çevrilir ve dosya adı yükleme tarih-saati olur. En son eklenen galeride en başta görünür. Listeden Sil ile kaldırılır.
 6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir. En üstte "📄 Analiz PDF'inden kısrak ekle": eşleşme analizi PDF'i (ör. Buyukdunya_Mabeyn_Pedigri_Analizi.pdf) seçilir, istenirse aynı anda birden çok; panel PDF'i okur, kısrağın adını ("Büyükdünya × Mabeyn" satırından), baba × anne satırını ve gebelik yılını kendisi doldurur; o adda kısrak zaten varsa PDF'i ona eklenir. Listede her kısrakta "📄 Analizi aç" (PDF'i açar) ve "📄 PDF ekle / değiştir" düğmeleri vardır. PDF SİTEDE GÖRÜNMEZ, sadece panelde durur; sitede kısrak kartında ad, sahip, açıklama (baba × anne) ve tay bilgisi görünür. Her kısrakta "✏️ Düzenle" vardır: ad, sahip, açıklama, tay bilgisi değiştirilir ve İSTENDİĞİ KADAR fotoğraf eklenir (birden çok seçilebilir, kendiliğinden küçültülür); ◀ ▶ ile sıralanır, ✕ ile çıkarılır, ilk fotoğraf sitede kartın büyük fotoğrafı olur, diğerleri altında küçük resim olarak görünür; sonra "Kaydet". Yeni kısrak eklerken de birden çok fotoğraf seçilebilir.
 7) 📑 Rapor: Aygır Analiz Raporu'nun bölümleri. Her bölümün Düzenle düğmesi vardır: Bölüm no, Etiket, Başlık, Alt başlık, "Sitede yeri" (Hakkında, Yarış Analizi, Pedigree, Eşleşme Rehberi, Damızlık ya da Sitede gösterme) ve Metin. Metin yazım kuralları: "## " ile başlayan satır ara başlık; "!! 16 / 32 | Yarış galibiyeti" rakam kutusu; içinde " | " olan alt alta satırlar tablo olur (ilk satır tablo başlığı); "- " madde; "~ " kaynak notu; **kelime** kalın; boş satır yeni paragraf; satırın başına "[gizli] " yazılırsa o satır sitede görünmez ama panelde durur. Yeni bölüm eklenebilir, silinebilir; Sıra numarası küçük olan önce gösterilir. Aynı sayfada rapor PDF'i yüklenir; sitede "Raporu İndir (PDF)" düğmesi çıkar.
-7b) 📒 Hara Defteri: Haradaki bütün atlar — kendi atları ve dışarıdan gelen (misafir) kısraklar; misafirde sahibi, telefonu, ne için geldiği (günübirlik aşım / gebe kalana kadar kalış / doğum için geliş / konaklama), geliş tarihi. Ata dokununca bilgileri ve "Olay ekle": Aşım, Gebelik kontrolü (gebe / boş / tekrar bakılacak), Doğum (canlı doğumda tay adı yazılırsa tay kaydı kendiliğinden açılır, annesi bağlanır), Haraya geldi, Haradan ayrıldı, Not. Tahmini doğum günü son aşımdan 340 gün; üstte "Yaklaşanlar": doğumu 30 gün içinde olanlar, aşımdan 12+ gün geçip kontrolü yapılmamışlar, doğumdan 5–30 gün geçenler (8. gün tekrar aşım). Süzgeç: Harada, Kendi, Misafir, Gebeler, Ayrılanlar, Hepsi. Haradan giden at silinmez, "Haradan ayrıldı" girilir. Stok, masraf, seyis takibi henüz yok (sırada).
+7b) 📒 Hara Defteri: Haradaki bütün atlar — kendi atları ve dışarıdan gelen (misafir) kısraklar; misafirde sahibi, telefonu, ne için geldiği (günübirlik aşım / gebe kalana kadar kalış / doğum için geliş / konaklama), geliş tarihi. Ata dokununca bilgileri ve "Olay ekle": Aşım, Gebelik kontrolü (gebe / boş / tekrar bakılacak), Doğum (canlı doğumda tay adı yazılırsa tay kaydı kendiliğinden açılır, annesi bağlanır), Haraya geldi, Haradan ayrıldı, Not. Tahmini doğum günü son aşımdan 340 gün; üstte "Yaklaşanlar": doğumu 30 gün içinde olanlar, aşımdan 12+ gün geçip kontrolü yapılmamışlar, doğumdan 5–30 gün geçenler (8. gün tekrar aşım). Süzgeç: Harada, Kendi, Misafir, Gebeler, Ayrılanlar, Hepsi. Haradan giden at silinmez, "Haradan ayrıldı" girilir. Hara Defteri'nde ata dokununca seyislerin girdiği yem, ilaç, bakım, gezdirme, fotoğraf ve sorun kayıtları da görünür; son 3 günde bildirilen sorunlar "Yaklaşanlar"ın en üstünde. Stok ve masraf henüz yok (sırada).
+7c) 🧑‍🌾 Seyis: Seyislerin ekranı, büyük düğmeli ve sade. Haradaki atlar listelenir, yanında o gün yapılan işlerin işaretleri (🌾 yem, 💊 ilaç, 🧽 bakım, 🚶 gezdirme, ⚠️ sorun, 📝 not). Ata dokununca: Yem verildi / Temizlik-bakım / Gezdirildi tek dokunuşla kaydedilir; İlaç verildi (hangi ilaç yazılabilir), Fotoğraf çek, Sorun var (ne olduğu yazılır, fotoğraf eklenebilir), Not yaz. Altta "Bugün bu ata yapılanlar" saatleriyle; yanlış girilen kayıt 24 saat içinde "↩️ Yanlış girdim, geri al" ile geri alınır. Seyis misafir sahibinin telefonunu görmez, aşım/gebelik/doğum giremez, hiçbir şey silemez.
+7d) 👥 Kullanıcılar (sadece Yönetici): Panele girecek kişileri ekler: adı soyadı, kullanıcı adı (küçük harf, Türkçe harfsiz, ör. ahmet), rol ve şifre (en az 6). Roller: Yönetici (her şey), Hara Müdürü (Hara Defteri'ni yönetir, Seyis ekranını, sitedeki kısrakları ve talepleri görür, Şahlı AI'ı kullanır), Seyis (sadece Seyis ekranı). Kişiye dokununca adı, rolü, şifresi değiştirilir ya da "Aktif" işareti kaldırılıp pasif yapılır (silinmez; pasif kişi giremez, açık oturumu kapanır). Kendini pasif yapamaz, en az bir aktif Yönetici kalır. Rollerin hangi ekranı göreceğini Serdar (Developer) 🔐 Yetkiler'den ayarlar. Yeni kişi telefonunda buyukdunya.com/panel adresini açıp kullanıcı adı ve şifreyle girer; ana ekrana ekleyebilir.
 8) 📩 Talepler: Sitedeki talep formundan gelen kısrak eşleştirme talepleri (ad, telefon, kısrak, mesaj) ve WhatsApp düğmesi tıklanma sayıları.
 9) 🤖 Şahlı AI: Bu sohbet.
 10) 🌐 Siteyi Aç: Siteyi yeni sekmede açar. Yapılan değişiklik sitede en geç 1 dakika içinde görünür.
@@ -695,6 +757,7 @@ SIK SORULANLAR (bunları aynen bu adımlarla anlat):
 - Raporun bir bölümünü sitede başka yere taşımak ya da kaldırmak: 📑 Rapor → Düzenle → "Sitede yeri" listesinden yeni yeri ya da "Sitede gösterme"yi seç → Kaydet.
 - Yeni PDF koymak: 📑 Rapor → Rapor PDF → Dosya seç → PDF Yükle. (Bu, Büyükdünya'nın kendi aygır raporu içindir.)
 - Bir kısrağın eşleşme analizi PDF'ini eklemek: Sol menü → 🐎 Kısraklar → en üstteki "📄 Analiz PDF'inden kısrak ekle" → "Dosya Seç" ile PDF'i (birden çok da olur) seç → "PDF'leri yükle". Panel kısrağı kendisi açar ya da aynı adlı kısrağa ekler. Başka bir kısrağa elle eklemek için listede o kısrağın "📄 PDF ekle / değiştir" düğmesi.
+- Seyis eklemek: Sol menü → 👥 Kullanıcılar → Adı soyadı, kullanıcı adı (ör. ahmet), Rol: Seyis, şifre → Kaydet. Kullanıcı adı ve şifreyi seyise ver; o buyukdunya.com/panel'i açıp girer, sadece Seyis ekranını görür.
 - Kısrağa fotoğraf eklemek / bilgisini değiştirmek: 🐎 Kısraklar → listede kısrağın "✏️ Düzenle" → "Dosya Seç" ile fotoğrafları seç (birden çok olur) → sırayı ◀ ▶ ile ayarla → "Kaydet". WhatsApp'tan gelen PDF önce telefona kaydedilir (PDF'e dokun → üç nokta → Kaydet / İndir), sonra panelde "Dosya Seç"ten İndirilenler'den seçilir.
 - WhatsApp numarasını değiştirmek: ⚙️ Site Ayarları → WhatsApp numarası → Kaydet.`;
 
@@ -803,7 +866,15 @@ const PANEL_HTML = `<!DOCTYPE html>
   .ust-kim { font-size:12px; white-space:nowrap; opacity:.95; }
   .ust-cik { background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.4); padding:6px 10px; border-radius:6px; font-size:12px; text-decoration:none; white-space:nowrap; }
   .destek { background:#fff3cd; color:#7a5a00; font-size:12px; padding:5px 12px; text-align:center; }
-  .side a.dev-yok { display:none; }
+  .side a.dev-yok, .side a.izin-yok { display:none; }
+  .sy-at { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:14px; border:1px solid #e3e3e3; border-radius:12px; margin-bottom:10px; cursor:pointer; background:#fff; font-size:18px; }
+  .sy-at small { font-size:13px; color:#666; }
+  .sy-ikon { font-size:20px; white-space:nowrap; }
+  .sy-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+  .sy-grid button { font-size:17px; padding:18px 6px; margin:0; border-radius:12px; min-height:70px; }
+  .yt-tablo { width:100%; border-collapse:collapse; font-size:13px; }
+  .yt-tablo td, .yt-tablo th { border-bottom:1px solid #eee; padding:6px 4px; text-align:center; }
+  .yt-tablo td:first-child, .yt-tablo th:first-child { text-align:left; }
   .kisi { display:flex; align-items:center; gap:10px; border:1px solid #eee; border-radius:8px; padding:10px; margin-bottom:8px; cursor:pointer; }
   .kisi.sec { border-color:#47952a; background:#f4f8f1; }
   .kisi .nokta { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
@@ -846,11 +917,14 @@ const PANEL_HTML = `<!DOCTYPE html>
     <a data-sec="haber" onclick="showSec('haber')"><span class="mi">📰</span>Haberler</a>
     <a data-sec="galeri" onclick="showSec('galeri')"><span class="mi">🖼️</span>Galeri</a>
     <a data-sec="kisrak" onclick="showSec('kisrak')"><span class="mi">🐎</span>Kısraklar</a>
+    <a data-sec="seyis" onclick="showSec('seyis')"><span class="mi">🧑‍🌾</span>Seyis</a>
     <a data-sec="hara" onclick="showSec('hara')"><span class="mi">📒</span>Hara Defteri</a>
     <a data-sec="rapor" onclick="showSec('rapor')"><span class="mi">📑</span>Rapor</a>
     <a data-sec="talep" onclick="showSec('talep')"><span class="mi">📩</span>Talepler</a>
     <a data-sec="ai" onclick="showSec('ai')"><span class="mi">🤖</span>Şahlı AI</a>
     <a data-sec="canli" onclick="showSec('canli')" class="dev-yok" id="nav-canli"><span class="mi">👀</span>Canlı İzle</a>
+    <a data-sec="kullanici" onclick="showSec('kullanici')"><span class="mi">👥</span>Kullanıcılar</a>
+    <a data-sec="yetki" onclick="showSec('yetki')"><span class="mi">🔐</span>Yetkiler</a>
     <a data-sec="hesap" onclick="showSec('hesap')"><span class="mi">👤</span>Hesabım</a>
     <a href="/" target="_blank"><span class="mi">🌐</span>Siteyi Aç</a>
   </nav>
@@ -1043,6 +1117,36 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="kisrak-list"></div>
     </div>
 
+    <div class="card" data-sec="seyis">
+      <h2 id="sy-baslik">🧑‍🌾 Bugün</h2>
+      <div class="ipucu">Ata dokun, yaptığın işi seç. Yaptığın her iş kaydedilir.</div>
+      <div id="sy-sorun"></div>
+      <div id="sy-liste"></div>
+    </div>
+    <div class="card" data-sec="seyis" id="sy-at-kart" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 id="sy-at-ad" style="margin:0;border:0">At</h2><button class="secondary" onclick="seyisKapat()" style="margin:0">⬅ Geri</button></div>
+      <div id="sy-at-durum" class="ipucu"></div>
+      <div class="sy-grid" id="sy-dugmeler">
+        <button onclick="seyisIs('yem')">🌾<br>Yem verildi</button>
+        <button onclick="seyisIs('ilac')">💊<br>İlaç verildi</button>
+        <button onclick="seyisIs('bakim')">🧽<br>Temizlik / bakım</button>
+        <button onclick="seyisIs('gezdirme')">🚶<br>Gezdirildi</button>
+        <button onclick="seyisIs('foto')">📷<br>Fotoğraf çek</button>
+        <button class="danger" onclick="seyisIs('sorun')">⚠️<br>Sorun var</button>
+        <button class="secondary" onclick="seyisIs('not')" style="grid-column:1 / span 2">📝 Not yaz</button>
+      </div>
+      <div id="sy-yazi" style="display:none">
+        <label id="sy-yazi-etiket">Açıklama</label>
+        <textarea id="sy-aciklama" style="min-height:70px;font-size:17px"></textarea>
+        <input type="file" id="sy-foto" accept="image/*" capture="environment" style="display:none">
+        <div id="sy-foto-on" class="ipucu"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="seyisKaydet()" style="font-size:17px;padding:12px 22px">Kaydet</button><button class="secondary" onclick="seyisYaziKapat()">Vazgeç</button><button class="secondary" id="sy-foto-ekle" onclick="document.getElementById('sy-foto').click()">📷 Fotoğraf ekle</button></div>
+      </div>
+      <div id="sy-msg"></div>
+      <h3 style="margin:16px 0 6px">Bugün bu ata yapılanlar</h3>
+      <div id="sy-bugun"></div>
+    </div>
+
     <div class="card" data-sec="hara">
       <h2>📒 Hara Defteri</h2>
       <div class="ipucu">Haradaki bütün atlar (kendi atlarınız + dışarıdan gelen kısraklar), aşımlar, gebelik kontrolleri ve doğumlar. Tahmini doğum günü son aşımdan 340 gün olarak hesaplanır.</div>
@@ -1056,7 +1160,7 @@ const PANEL_HTML = `<!DOCTYPE html>
         <button class="secondary" data-s="hepsi" onclick="haraSuz('hepsi')">Hepsi</button>
       </div>
       <input type="text" id="hara-ara" placeholder="Ara: at adı, sahibi, telefon…" oninput="haraCiz()">
-      <button onclick="haraFormAc(0)" style="margin:8px 0">＋ At ekle</button>
+      <button onclick="haraFormAc(0)" style="margin:8px 0" id="hara-ekle-dugme">＋ At ekle</button>
       <div id="hara-liste"></div>
       <div id="hara-msg"></div>
     </div>
@@ -1089,6 +1193,7 @@ const PANEL_HTML = `<!DOCTYPE html>
 
     <div class="card hide" data-sec="hara" id="hara-detay-kart" style="display:none">
       <div id="hd-bilgi"></div>
+      <div id="ho-form">
       <h3 style="margin:14px 0 6px">＋ Olay ekle</h3>
       <label>Ne oldu</label>
       <select id="ho-tip" onchange="hoTipDegisti()">
@@ -1097,6 +1202,11 @@ const PANEL_HTML = `<!DOCTYPE html>
         <option value="dogum">🍼 Doğum</option>
         <option value="giris">⬅️ Haraya geldi</option>
         <option value="cikis">➡️ Haradan ayrıldı</option>
+        <option value="yem">🌾 Yem verildi</option>
+        <option value="ilac">💊 İlaç verildi</option>
+        <option value="bakim">🧽 Temizlik / bakım</option>
+        <option value="gezdirme">🚶 Gezdirildi</option>
+        <option value="sorun">⚠️ Sorun</option>
         <option value="not">📝 Not</option>
       </select>
       <label>Tarih</label><input type="date" id="ho-tarih">
@@ -1109,8 +1219,10 @@ const PANEL_HTML = `<!DOCTYPE html>
         <label>Babası</label><input type="text" id="ho-tay-baba" value="Büyükdünya">
       </div>
       <label>Açıklama</label><textarea id="ho-aciklama" placeholder="ör. Veteriner Ahmet Bey, 16. gün ultrason"></textarea>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button onclick="haraOlayKaydet()">Kaydet</button><button class="secondary" onclick="haraDetayKapat()">Listeye dön</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button onclick="haraOlayKaydet()">Kaydet</button></div>
       <div id="ho-msg"></div>
+      </div>
+      <button class="secondary" onclick="haraDetayKapat()" style="margin-top:8px">⬅ Listeye dön</button>
       <h3 style="margin:16px 0 6px">Geçmiş</h3>
       <div id="hd-olaylar"></div>
     </div>
@@ -1178,6 +1290,25 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div class="akis" id="canli-akis"></div>
     </div>
 
+    <div class="card" data-sec="kullanici">
+      <h2>👥 Kullanıcılar</h2>
+      <div class="ipucu">Panele girecek kişiler. <b>Yönetici</b> her şeyi görür. <b>Hara Müdürü</b> Hara Defteri'ni yönetir. <b>Seyis</b> sadece Seyis ekranını görür: ata dokunup yem, ilaç, bakım, fotoğraf, sorun girer.</div>
+      <div id="ku-liste"></div>
+      <h3 style="margin:14px 0 6px" id="ku-form-baslik">＋ Yeni kullanıcı</h3>
+      <label>Adı soyadı</label><input type="text" id="ku-ad">
+      <label>Kullanıcı adı (girişte yazılacak; küçük harf, Türkçe harfsiz, ör. ahmet)</label><input type="text" id="ku-kadi" autocapitalize="off" autocomplete="off">
+      <label>Rol</label><select id="ku-rol"></select>
+      <label id="ku-sifre-etiket">Şifre (en az 6 karakter)</label><input type="text" id="ku-sifre" autocomplete="off">
+      <label id="ku-aktif-kutu" style="display:none"><input type="checkbox" id="ku-aktif" style="width:auto"> Aktif (işaretsizse giriş yapamaz)</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button onclick="kuKaydet()">Kaydet</button><button class="secondary" onclick="kuFormSifirla()">Vazgeç</button></div>
+      <div id="ku-msg"></div>
+    </div>
+    <div class="card" data-sec="yetki">
+      <h2>🔐 Yetkiler (sadece Developer)</h2>
+      <div class="ipucu">Hara Müdürü ve Seyis'in hangi ekranı görüp (Gör), kayıt girip (Yaz), silebileceği (Sil). Yönetici her şeyi yapar. Değişiklik anında geçer; kişi sayfayı yenileyince menüsü değişir.</div>
+      <div id="yt-tablo"></div>
+    </div>
+
     <div class="card" data-sec="hesap">
       <h2>👤 Hesabım</h2>
       <div id="hesap-bilgi" class="ipucu"></div>
@@ -1226,6 +1357,7 @@ document.addEventListener("click", function (e) {
   document.getElementById("lb").classList.add("acik");
 });
 function showSec(sec, gecmistenMi) {
+  if (BEN && !secIzinli(sec)) sec = ilkIzinliSec();
   if (!gecmistenMi && sec !== SEKME && BEN) { try { history.pushState({ bd: 1, sec: sec }, "", "#" + sec); } catch (e) {} }
   document.querySelectorAll(".card[data-sec]").forEach(function (c) { c.classList.toggle("hide", c.dataset.sec !== sec); });
   document.querySelectorAll(".side a[data-sec]").forEach(function (a) { a.classList.toggle("active", a.dataset.sec === sec); });
@@ -1234,13 +1366,16 @@ function showSec(sec, gecmistenMi) {
   SEKME = sec; nabiz();
   if (sec === "canli") canliBaslat(); else canliDurdur();
   if (sec === "hara") { HARA_AT = 0; haraKartlar("liste"); haraYukle(); }
+  if (sec === "seyis") { seyisKapat(); seyisYukle(); }
+  if (sec === "kullanici") kuYukle();
+  if (sec === "yetki") ytYukle();
 }
 
 function showMsg(id, text, ok) {
   const el = document.getElementById(id);
   el.className = "msg " + (ok ? "ok" : "err");
   el.textContent = text;
-  setTimeout(() => { el.textContent = ""; }, 4000);
+  setTimeout(() => { el.textContent = ""; el.className = ""; }, 4000);
 }
 
 async function login() {
@@ -1257,23 +1392,42 @@ async function login() {
 }
 
 async function loadAll() {
-  let ilk = "yaris";
-  try { ilk = localStorage.getItem("panelSec") || "yaris"; } catch (e) {}
-  showSec(ilk);
-  const p = await (await fetch("/api/profile")).json();
-  document.getElementById("p-toplam").value = p.toplam_yaris;
-  document.getElementById("p-birincilik").value = p.birincilik;
-  document.getElementById("p-grup").value = p.grup_galibiyeti;
-  document.getElementById("p-kv").value = p.kv_galibiyeti;
-  loadNews();
-  loadYarisGecmisi();
-  loadGallery();
-  loadKisrak();
-  loadTalepler();
-  loadWaStats();
-  loadSiteIcerik();
-  loadSiteAyarlar();
-  loadRapor();
+  let ilk = "";
+  try { ilk = localStorage.getItem("panelSec") || ""; } catch (e) {}
+  if (BEN && BEN.rol === "seyis") ilk = "seyis";
+  showSec(secIzinli(ilk) ? ilk : ilkIzinliSec());
+  if (iz("yaris", "gor")) {
+    const p = await (await fetch("/api/profile")).json();
+    document.getElementById("p-toplam").value = p.toplam_yaris;
+    document.getElementById("p-birincilik").value = p.birincilik;
+    document.getElementById("p-grup").value = p.grup_galibiyeti;
+    document.getElementById("p-kv").value = p.kv_galibiyeti;
+    loadYarisGecmisi();
+  }
+  if (iz("haber", "gor")) loadNews();
+  if (iz("galeri", "gor")) loadGallery();
+  if (iz("kisrak", "gor")) loadKisrak();
+  if (iz("talep", "gor")) { loadTalepler(); loadWaStats(); }
+  if (iz("site", "gor")) { loadSiteIcerik(); loadSiteAyarlar(); }
+  if (iz("rapor", "gor")) loadRapor();
+}
+// --- Yetki: menü ve ekranlar kişinin izinlerine göre ---
+const NAV_IZIN = { yaris: "yaris", metin: "site", ayar: "site", haber: "haber", galeri: "galeri", kisrak: "kisrak", hara: "hara", seyis: "seyis", rapor: "rapor", talep: "talep", ai: "ai" };
+function iz(sekme, oz) { return !!(BEN && (BEN.tam || (BEN.izin && BEN.izin[sekme] && BEN.izin[sekme][oz]))); }
+function secIzinli(sec) {
+  if (!sec || !BEN) return false;
+  if (sec === "hesap") return true;
+  if (sec === "kullanici") return !!BEN.tam;
+  if (sec === "yetki" || sec === "canli") return !!BEN.dev;
+  return NAV_IZIN[sec] ? iz(NAV_IZIN[sec], "gor") : false;
+}
+function ilkIzinliSec() {
+  const l = ["yaris", "seyis", "hara", "metin", "haber", "galeri", "kisrak", "rapor", "talep", "ai"];
+  for (let i = 0; i < l.length; i++) if (secIzinli(l[i])) return l[i];
+  return "hesap";
+}
+function navIzinUygula() {
+  document.querySelectorAll(".side a[data-sec]").forEach(function (a) { a.classList.toggle("izin-yok", !secIzinli(a.dataset.sec)); });
 }
 
 async function loadSiteIcerik() {
@@ -1815,7 +1969,7 @@ let HARA = { atlar: [], olaylar: [] }, HARA_SUZ = "harada", HARA_AT = 0, HARA_FO
 const GEBELIK_GUN = 340;
 const HARA_NEDEN_AD = { gunubirlik_asim: "Günübirlik aşım", gebe_kalana_kadar: "Gebe kalana kadar kalış", dogum: "Doğum için geliş", konaklama: "Konaklama" };
 const HARA_CINS_AD = { kisrak: "Kısrak", aygir: "Aygır", tay: "Tay", diger: "Diğer" };
-const HARA_OLAY_AD = { asim: "💞 Aşım", kontrol: "🩺 Gebelik kontrolü", dogum: "🍼 Doğum", giris: "⬅️ Haraya geldi", cikis: "➡️ Haradan ayrıldı", not: "📝 Not" };
+const HARA_OLAY_AD = { asim: "💞 Aşım", kontrol: "🩺 Gebelik kontrolü", dogum: "🍼 Doğum", giris: "⬅️ Haraya geldi", cikis: "➡️ Haradan ayrıldı", not: "📝 Not", yem: "🌾 Yem verildi", ilac: "💊 İlaç verildi", bakim: "🧽 Temizlik / bakım", gezdirme: "🚶 Gezdirildi", sorun: "⚠️ Sorun" };
 const HARA_SONUC_AD = { gebe: "Gebe", bos: "Boş", tekrar: "Tekrar bakılacak", canli: "Canlı", olu: "Ölü doğum" };
 function hBugun() { const d = new Date(Date.now() + 3 * 3600000); return d.toISOString().slice(0, 10); }
 function hGunEkle(t, n) { const d = new Date(t + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
@@ -1848,6 +2002,12 @@ function haraYaklasan() {
     if (d.kod === "tekrar") l.push([0, "🩺 <b>" + kEsc(at.ad) + "</b>: kontrol tekrarlanacak", at.id]);
     if (d.kod === "dogurdu") { const g = hFark(d.D, bugun); if (g >= 5 && g <= 30) l.push([8 - g, "💞 <b>" + kEsc(at.ad) + "</b>: doğumdan " + g + " gün geçti — 8. gün tekrar aşım", at.id]); }
   });
+  const sinir = hGunEkle(hBugun(), -3);
+  HARA.olaylar.forEach(function (o) {
+    if (o.tip !== "sorun" || o.tarih < sinir) return;
+    const at = HARA.atlar.find(function (x) { return x.id === o.at_id; });
+    if (at) l.push([-100, "⚠️ <b>" + kEsc(at.ad) + "</b>: " + kEsc(o.aciklama || "sorun bildirildi") + " <small>(" + hTr(o.tarih) + (o.kaydeden ? ", " + kEsc(o.kaydeden) : "") + ")</small>", at.id]);
+  });
   l.sort(function (a, b) { return a[0] - b[0]; });
   return l;
 }
@@ -1858,6 +2018,7 @@ async function haraYukle() {
 }
 function haraSuz(s) { HARA_SUZ = s; haraCiz(); }
 function haraCiz() {
+  document.getElementById("hara-ekle-dugme").style.display = iz("hara", "yaz") ? "" : "none";
   document.querySelectorAll("#hara-suz button").forEach(function (b) { b.className = b.dataset.s === HARA_SUZ ? "" : "secondary"; });
   const y = haraYaklasan();
   document.getElementById("hara-yaklasan").innerHTML = y.length
@@ -1928,12 +2089,13 @@ function haraDetayCiz() {
     + satir("Ne için geldi", HARA_NEDEN_AD[at.gelis_nedeni]) + satir("Geliş", hTr(at.giris) + (at.tur === "misafir" && at.giris && at.durum !== "ayrildi" ? " (" + hFark(at.giris, bugun) + " gündür harada)" : ""))
     + satir("Ayrılış", hTr(at.cikis)) + satir("Doğum yılı", at.dogum_yili) + satir("Renk", at.renk) + satir("Babası", at.baba) + satir("Annesi", at.anne) + satir("Çip / kayıt no", at.cip) + satir("Not", at.notlar)
     + (taylar.length ? '<div><small style="color:#666">Tayları:</small> ' + taylar.map(function (t) { return '<a href="javascript:void 0" onclick="haraDetayAc(' + t.id + ')">' + kEsc(t.ad) + '</a>'; }).join(", ") + '</div>' : "")
-    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button onclick="haraFormAc(' + at.id + ')">✏️ Bilgileri düzenle</button><button class="danger" onclick="haraAtSil(' + at.id + ')">Sil</button></div>';
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">' + (iz("hara", "yaz") ? '<button onclick="haraFormAc(' + at.id + ')">✏️ Bilgileri düzenle</button>' : "") + (iz("hara", "sil") ? '<button class="danger" onclick="haraAtSil(' + at.id + ')">Sil</button>' : "") + '</div>';
+  document.getElementById("ho-form").style.display = iz("hara", "yaz") ? "" : "none";
   const ev = haraOlaylari(at.id).slice().reverse();
   document.getElementById("hd-olaylar").innerHTML = ev.map(function (o) {
     return '<div class="item"><b>' + hTr(o.tarih) + '</b> · ' + HARA_OLAY_AD[o.tip] + (o.sonuc ? ' — <b>' + (HARA_SONUC_AD[o.sonuc] || kEsc(o.sonuc)) + '</b>' : "")
-      + (o.aciklama ? '<br><small>' + kEsc(o.aciklama) + '</small>' : "") + (o.kaydeden ? '<br><small style="color:#888">' + kEsc(o.kaydeden) + '</small>' : "")
-      + ' <button class="danger" style="padding:2px 8px;float:right" onclick="haraOlaySil(' + o.id + ')">✕</button></div>';
+      + (o.aciklama ? '<br><small>' + kEsc(o.aciklama) + '</small>' : "") + (o.foto ? '<br><a href="' + kEsc(o.foto) + '" target="_blank"><img src="' + kEsc(o.foto) + '" style="max-height:110px;border-radius:8px;margin-top:4px"></a>' : "") + (o.kaydeden ? '<br><small style="color:#888">' + kEsc(o.kaydeden) + '</small>' : "")
+      + (iz("hara", "sil") ? ' <button class="danger" style="padding:2px 8px;float:right" onclick="haraOlaySil(' + o.id + ')">✕</button>' : "") + '</div>';
   }).join("") || '<div class="ipucu">Henüz kayıt yok.</div>';
 }
 function hoSifirla() {
@@ -1969,6 +2131,154 @@ async function haraAtSil(id) {
   const at = HARA.atlar.find(function (x) { return x.id === id; });
   if (!confirm((at ? at.ad : "Bu at") + " ve bütün geçmişi silinsin mi? (Haradan ayrıldıysa silmek yerine 'Haradan ayrıldı' kaydı girin.)")) return;
   await fetch("/api/hara/at/" + id, { method: "DELETE" }); HARA_AT = 0; await haraYukle(); haraKartlar("liste");
+}
+
+// ---------------- SEYİS EKRANI (basit, büyük düğmeli) ----------------
+let SY_AT = 0, SY_TIP = "", SY_FOTO = "";
+const SY_IKON = { yem: "🌾", ilac: "💊", bakim: "🧽", gezdirme: "🚶", sorun: "⚠️", not: "📝" };
+async function seyisYukle() {
+  try { HARA = await (await fetch("/api/hara")).json(); } catch (e) { HARA = { atlar: [], olaylar: [] }; }
+  seyisCiz(); if (SY_AT) seyisAtCiz();
+}
+function seyisBugunku(atId) { const b = hBugun(); return HARA.olaylar.filter(function (o) { return o.at_id === atId && o.tarih === b && SY_IKON[o.tip]; }); }
+function seyisCiz() {
+  document.getElementById("sy-baslik").textContent = "🧑‍🌾 Bugün — " + hTr(hBugun());
+  const atlar = HARA.atlar.filter(function (a) { return a.durum !== "ayrildi"; });
+  const sinir = hGunEkle(hBugun(), -2);
+  const sorunlar = HARA.olaylar.filter(function (o) { return o.tip === "sorun" && o.tarih >= sinir; });
+  document.getElementById("sy-sorun").innerHTML = sorunlar.length ? '<div style="background:#fdecea;border-radius:10px;padding:10px;margin-bottom:10px"><b>⚠️ Bildirilen sorunlar</b>' + sorunlar.map(function (o) { const a = HARA.atlar.find(function (x) { return x.id === o.at_id; }) || {}; return '<div style="margin-top:4px">' + kEsc(a.ad || "") + ': ' + kEsc(o.aciklama || "") + ' <small>(' + hTr(o.tarih) + ')</small></div>'; }).join("") + '</div>' : "";
+  document.getElementById("sy-liste").innerHTML = atlar.map(function (a) {
+    const yapilan = seyisBugunku(a.id).map(function (o) { return SY_IKON[o.tip]; });
+    const tekil = yapilan.filter(function (x, i) { return yapilan.indexOf(x) === i; }).join("");
+    const d = typeof haraDurum === "function" ? haraDurum(a) : null;
+    return '<div class="sy-at" onclick="seyisAc(' + a.id + ')"><div><b>' + kEsc(a.ad) + '</b><br><small>' + HARA_CINS_AD[a.cins] + (a.tur === "misafir" ? " · misafir" : "") + (d && d.kod === "gebe" ? " · 🤰 gebe" : "") + '</small></div><div class="sy-ikon">' + (tekil || '<small>henüz yok</small>') + '</div></div>';
+  }).join("") || '<div class="ipucu">Hara Defteri’nde at yok. Yönetici atları ekleyince burada görünür.</div>';
+}
+function seyisAc(id) {
+  SY_AT = id; seyisYaziKapat();
+  document.querySelectorAll('.card[data-sec="seyis"]').forEach(function (c) { c.style.display = c.id === "sy-at-kart" ? "" : "none"; });
+  seyisAtCiz(); window.scrollTo(0, 0); const w = document.querySelector(".layout .wrap"); if (w) w.scrollTop = 0;
+}
+function seyisKapat() {
+  SY_AT = 0;
+  document.querySelectorAll('.card[data-sec="seyis"]').forEach(function (c) { c.style.display = c.id === "sy-at-kart" ? "none" : ""; });
+  if (HARA.atlar) seyisCiz();
+}
+function seyisAtCiz() {
+  const a = HARA.atlar.find(function (x) { return x.id === SY_AT; }); if (!a) { seyisKapat(); return; }
+  document.getElementById("sy-at-ad").textContent = a.ad;
+  const d = haraDurum(a);
+  document.getElementById("sy-at-durum").textContent = HARA_CINS_AD[a.cins] + (a.tur === "misafir" ? " · misafir" + (a.sahip ? " (" + a.sahip + ")" : "") : "") + (d ? " · " + d.etiket : "");
+  const l = seyisBugunku(a.id).slice().reverse();
+  document.getElementById("sy-bugun").innerHTML = l.map(function (o) {
+    const saat = o.zaman ? new Date(o.zaman).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" }) : "";
+    const geriAl = o.kaydeden_id === HARA.ben_id && o.zaman && Date.now() - o.zaman < 86400000;
+    return '<div class="item" style="font-size:16px">' + (saat ? '<b>' + saat + '</b> · ' : "") + HARA_OLAY_AD[o.tip] + (o.aciklama ? '<br><small>' + kEsc(o.aciklama) + '</small>' : "")
+      + (o.foto ? '<br><img src="' + kEsc(o.foto) + '" style="max-height:100px;border-radius:8px;margin-top:4px">' : "")
+      + (o.kaydeden ? '<br><small style="color:#888">' + kEsc(o.kaydeden) + '</small>' : "")
+      + (geriAl ? '<br><button class="secondary" style="padding:4px 10px;font-size:13px" onclick="seyisGeriAl(' + o.id + ')">↩️ Yanlış girdim, geri al</button>' : "") + '</div>';
+  }).join("") || '<div class="ipucu">Bugün henüz bir şey girilmedi.</div>';
+}
+function seyisYaziKapat() {
+  SY_TIP = ""; SY_FOTO = "";
+  document.getElementById("sy-yazi").style.display = "none";
+  document.getElementById("sy-dugmeler").style.display = "";
+  document.getElementById("sy-aciklama").value = ""; document.getElementById("sy-foto-on").innerHTML = "";
+}
+function seyisIs(tip) {
+  if (tip === "yem" || tip === "bakim" || tip === "gezdirme") { SY_TIP = tip; seyisKaydet(); return; }
+  SY_TIP = tip === "foto" ? "not" : tip; SY_FOTO = "";
+  document.getElementById("sy-dugmeler").style.display = "none";
+  document.getElementById("sy-yazi").style.display = "";
+  document.getElementById("sy-yazi-etiket").textContent = tip === "ilac" ? "Hangi ilaç / ne kadar? (boş bırakılabilir)" : tip === "sorun" ? "Ne oldu? (topallık, yara, yem yemiyor…)" : tip === "foto" ? "Fotoğrafla ilgili not (boş bırakılabilir)" : "Notunuz";
+  document.getElementById("sy-foto-on").innerHTML = "";
+  if (tip === "foto") document.getElementById("sy-foto").click(); else document.getElementById("sy-aciklama").focus();
+}
+document.addEventListener("change", async function (e) {
+  if (!e.target || e.target.id !== "sy-foto") return;
+  const f = e.target.files && e.target.files[0]; e.target.value = ""; if (!f) return;
+  const on = document.getElementById("sy-foto-on");
+  on.textContent = "Fotoğraf yükleniyor…";
+  try { SY_FOTO = await uploadFile(await resizeToWebp(f, 1600, 1600, 0.85)); on.innerHTML = '<img src="' + kEsc(SY_FOTO) + '" style="max-height:120px;border-radius:8px">'; }
+  catch (x) { SY_FOTO = ""; on.textContent = "Fotoğraf yüklenemedi: " + x.message; }
+});
+async function seyisKaydet() {
+  if (!SY_AT || !SY_TIP) return;
+  const aciklama = document.getElementById("sy-aciklama").value.trim();
+  if (SY_TIP === "sorun" && !aciklama && !SY_FOTO) { showMsg("sy-msg", "Ne olduğunu kısaca yazın ya da fotoğraf ekleyin", false); return; }
+  if (SY_TIP === "not" && !aciklama && !SY_FOTO) { showMsg("sy-msg", "Bir şey yazın ya da fotoğraf ekleyin", false); return; }
+  const body = { at_id: SY_AT, tip: SY_TIP, tarih: hBugun(), aciklama: aciklama || (SY_FOTO && SY_TIP === "not" ? "Fotoğraf" : ""), foto: SY_FOTO };
+  const r = await fetch("/api/hara/olay", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) { showMsg("sy-msg", d.error || "Kaydedilemedi", false); return; }
+  showMsg("sy-msg", "✅ " + HARA_OLAY_AD[SY_TIP] + " — kaydedildi", true);
+  seyisYaziKapat(); await seyisYukle();
+}
+async function seyisGeriAl(id) {
+  if (!confirm("Bu kayıt geri alınsın mı?")) return;
+  const r = await fetch("/api/hara/olay/" + id, { method: "DELETE" });
+  if (!r.ok) { const d = await r.json().catch(function () { return {}; }); showMsg("sy-msg", d.error || "Geri alınamadı", false); return; }
+  seyisYukle();
+}
+
+// ---------------- KULLANICILAR ----------------
+let KU = { kullanicilar: [], roller: [] }, KU_ID = 0;
+const KU_ROL_ACIK = { gelistirici: "Developer", yonetici: "Her şeyi görür ve yönetir", mudur: "Hara Defteri'ni yönetir", seyis: "Sadece Seyis ekranı" };
+async function kuYukle() {
+  const r = await fetch("/api/kullanicilar"); if (!r.ok) return;
+  KU = await r.json();
+  document.getElementById("ku-rol").innerHTML = KU.roller.map(function (x) { return '<option value="' + x.kod + '">' + x.ad + ' — ' + KU_ROL_ACIK[x.kod] + '</option>'; }).join("");
+  document.getElementById("ku-liste").innerHTML = KU.kullanicilar.map(function (u) {
+    const rol = (KU.roller.find(function (x) { return x.kod === u.rol; }) || { ad: u.rol }).ad;
+    return '<div class="item" style="cursor:pointer;' + (u.aktif ? "" : "opacity:.55") + '" onclick="kuDuzenle(' + u.id + ')"><b>' + kEsc(u.ad || u.kadi) + '</b> <small>(' + kEsc(u.kadi) + ')</small><br><small>' + rol + (u.aktif ? "" : " · PASİF") + (u.son_giris ? " · son giriş " + new Date(u.son_giris).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : " · hiç girmedi") + '</small></div>';
+  }).join("");
+  kuFormSifirla();
+}
+function kuFormSifirla() {
+  KU_ID = 0;
+  document.getElementById("ku-form-baslik").textContent = "＋ Yeni kullanıcı";
+  ["ku-ad", "ku-kadi", "ku-sifre"].forEach(function (i) { document.getElementById(i).value = ""; });
+  document.getElementById("ku-kadi").disabled = false;
+  document.getElementById("ku-rol").value = "seyis";
+  document.getElementById("ku-sifre-etiket").textContent = "Şifre (en az 6 karakter)";
+  document.getElementById("ku-aktif-kutu").style.display = "none";
+}
+function kuDuzenle(id) {
+  const u = KU.kullanicilar.find(function (x) { return x.id === id; }); if (!u) return;
+  KU_ID = id;
+  document.getElementById("ku-form-baslik").textContent = "✏️ " + (u.ad || u.kadi) + " — düzenle";
+  document.getElementById("ku-ad").value = u.ad || ""; document.getElementById("ku-kadi").value = u.kadi; document.getElementById("ku-kadi").disabled = true;
+  document.getElementById("ku-rol").value = u.rol; document.getElementById("ku-sifre").value = "";
+  document.getElementById("ku-sifre-etiket").textContent = "Yeni şifre (değiştirmeyecekseniz boş bırakın)";
+  document.getElementById("ku-aktif-kutu").style.display = ""; document.getElementById("ku-aktif").checked = !!u.aktif;
+  document.getElementById("ku-ad").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+async function kuKaydet() {
+  const body = { ad: document.getElementById("ku-ad").value, rol: document.getElementById("ku-rol").value, sifre: document.getElementById("ku-sifre").value };
+  if (KU_ID) body.aktif = document.getElementById("ku-aktif").checked; else body.kadi = document.getElementById("ku-kadi").value;
+  const r = await fetch(KU_ID ? "/api/kullanicilar/" + KU_ID : "/api/kullanicilar", { method: KU_ID ? "PUT" : "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) { showMsg("ku-msg", d.error || "Kaydedilemedi", false); return; }
+  showMsg("ku-msg", KU_ID ? "✅ Kaydedildi" : "✅ " + body.ad + " eklendi. Kullanıcı adı: " + body.kadi.trim().toLowerCase() + " — şifresini kendisine iletin.", true);
+  kuYukle();
+}
+
+// ---------------- YETKİLER (Developer) ----------------
+async function ytYukle() {
+  const r = await fetch("/api/yetkiler"); if (!r.ok) return;
+  const d = await r.json();
+  const ac = {}; d.izin.forEach(function (x) { ac[x.rol + "|" + x.sekme + "|" + x.ozellik] = !!x.acik; });
+  document.getElementById("yt-tablo").innerHTML = d.roller.map(function (rol) {
+    return '<h3 style="margin:14px 0 6px">' + rol.ad + '</h3><table class="yt-tablo"><tr><th>Ekran</th><th>Gör</th><th>Yaz</th><th>Sil</th></tr>'
+      + d.katalog.map(function (k) {
+        return '<tr><td>' + k[1] + '</td>' + ["gor", "yaz", "sil"].map(function (oz) {
+          return '<td><input type="checkbox" style="width:auto" ' + (ac[rol.kod + "|" + k[0] + "|" + oz] ? "checked" : "") + ' data-r="' + rol.kod + '" data-s="' + k[0] + '" data-o="' + oz + '" onchange="ytDegis(this.dataset.r,this.dataset.s,this.dataset.o,this.checked)"></td>';
+        }).join("") + '</tr>';
+      }).join("") + '</table>';
+  }).join("");
+}
+async function ytDegis(rol, sekme, oz, acik) {
+  await fetch("/api/yetkiler", { method: "PUT", body: JSON.stringify({ rol: rol, sekme: sekme, ozellik: oz, acik: acik }), headers: { "Content-Type": "application/json" } });
 }
 function kisrakDuzAc(id) {
   const k = KISRAKLAR.find(function (x) { return x.id === id; }); if (!k) return;
@@ -2083,7 +2393,7 @@ async function deleteTalep(id) {
 // Oturum zaten açıksa doğrudan paneli göster
 // ===== 14.11.2026: kişiye özel giriş, nabız, dokunuş kaydı, Canlı İzleme =====
 let BEN = null, SEKME = "", TIK_KUYRUK = [], CANLI_ZAMAN = null, CANLI_KID = null, CANLI_SON = 0, CANLI_GUN = "";
-const SEKME_AD = { yaris: "Yarış", metin: "Metinler", ayar: "Site Ayarları", haber: "Haberler", galeri: "Galeri", kisrak: "Kısraklar", rapor: "Rapor", talep: "Talepler", ai: "Şahlı AI", canli: "Canlı İzle", hesap: "Hesabım" };
+const SEKME_AD = { seyis: "Seyis", hara: "Hara Defteri", kullanici: "Kullanıcılar", yetki: "Yetkiler", yaris: "Yarış", metin: "Metinler", ayar: "Site Ayarları", haber: "Haberler", galeri: "Galeri", kisrak: "Kısraklar", rapor: "Rapor", talep: "Talepler", ai: "Şahlı AI", canli: "Canlı İzle", hesap: "Hesabım" };
 // Her panel isteğine hangi bölümde olunduğunu ekle (işlem kaydında görünür)
 const _ilkFetch = window.fetch.bind(window);
 window.fetch = function (adres, ayar) {
@@ -2114,7 +2424,8 @@ async function panelAc() {
   document.getElementById("destek-serit").classList.toggle("hidden", BEN.yol !== "merkez");
   document.getElementById("panel").classList.toggle("destekli", BEN.yol === "merkez");
   document.getElementById("nav-canli").classList.toggle("dev-yok", !BEN.dev);
-  document.getElementById("hesap-bilgi").textContent = "Giriş yapan: " + (BEN.ad || "") + (BEN.kadi ? " (" + BEN.kadi + ")" : "") + (BEN.dev ? " · Developer" : " · Yönetici");
+  document.getElementById("hesap-bilgi").textContent = "Giriş yapan: " + (BEN.ad || "") + (BEN.kadi ? " (" + BEN.kadi + ")" : "") + " · " + (BEN.rol_ad || "");
+  navIzinUygula();
   document.getElementById("hesap-sifre-kutu").classList.toggle("hidden", !(BEN.id > 0));
   loadAll();
   return true;
@@ -2309,10 +2620,80 @@ const ANA_ISLEYICI = {
     if (path.startsWith("/api/")) {
       const authed = await requireAuth(request, env);
 
+      // Yetki kapısı: yönetici/Developer dışındaki rollerde (müdür, seyis) yol → sekme izni
+      if (authed && !tamYetkili(authed)) {
+        const sk = izinSekmesi(path);
+        if (sk) {
+          const oz = request.method === "GET" ? "gor" : request.method === "DELETE" ? "sil" : "yaz";
+          if (!(await izinVar(env, authed, sk, oz))) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        }
+        if (path === "/api/canli" || path.startsWith("/api/kullanici") || path.startsWith("/api/yetki")) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+      }
+
       // --- 14.11.2026: kimlik, nabız, dokunuş, canlı izleme, kendi şifresi ---
       if (path === "/api/ben" && request.method === "GET") {
         if (!authed) return json({ error: "unauthorized" }, 401);
-        return json({ id: authed.id, ad: authed.ad, kadi: authed.kadi, rol: authed.rol, dev: authed.dev, yol: authed.yol });
+        return json({ id: authed.id, ad: authed.ad, kadi: authed.kadi, rol: authed.rol, rol_ad: ROL_AD[authed.rol] || authed.rol, dev: authed.dev, yol: authed.yol, tam: tamYetkili(authed), izin: await izinleri(env, authed) });
+      }
+
+      // --- Kullanıcılar (Yönetici + Developer) ---
+      if (path === "/api/kullanicilar" && request.method === "GET") {
+        if (!tamYetkili(authed)) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        const l = (await env.DB.prepare("SELECT id, kadi, ad, rol, aktif, son_giris, olusturma FROM panel_kullanici ORDER BY aktif DESC, id").all()).results || [];
+        return json({ kullanicilar: authed.dev ? l : l.filter((u) => u.rol !== "gelistirici"), roller: (authed.dev ? ["gelistirici", ...ROLLER] : ROLLER).map((r) => ({ kod: r, ad: ROL_AD[r] })) });
+      }
+      if (path === "/api/kullanicilar" && request.method === "POST") {
+        if (!tamYetkili(authed)) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        const b = await request.json().catch(() => ({}));
+        const kadi = String(b.kadi || "").trim().toLowerCase(), ad = String(b.ad || "").trim().slice(0, 60), rol = String(b.rol || "");
+        if (!/^[a-z0-9._-]{3,30}$/.test(kadi)) return json({ error: "Kullanıcı adı 3-30 harf olmalı (küçük harf, rakam, nokta, tire; Türkçe harf ve boşluk yok)" }, 400);
+        if (!ad) return json({ error: "Adı soyadı yazılmalı" }, 400);
+        if (!(ROLLER.includes(rol) || (authed.dev && rol === "gelistirici"))) return json({ error: "Rol geçersiz" }, 400);
+        if (String(b.sifre || "").length < 6) return json({ error: "Şifre en az 6 karakter olmalı" }, 400);
+        const var_ = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE kadi=? COLLATE NOCASE").bind(kadi).first();
+        if (var_) return json({ error: "Bu kullanıcı adı zaten var" }, 400);
+        const r = await env.DB.prepare("INSERT INTO panel_kullanici (kadi, ad, rol, sifre, aktif) VALUES (?,?,?,?,1)").bind(kadi, ad, rol, await sifreOzetle(String(b.sifre))).run();
+        return json({ ok: true, id: r.meta.last_row_id });
+      }
+      const kulM = path.match(/^\/api\/kullanicilar\/(\d+)$/);
+      if (kulM && request.method === "PUT") {
+        if (!tamYetkili(authed)) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        const id = Number(kulM[1]);
+        const u = await env.DB.prepare("SELECT id, rol, aktif FROM panel_kullanici WHERE id=?").bind(id).first();
+        if (!u || (u.rol === "gelistirici" && !authed.dev)) return json({ error: "Kullanıcı bulunamadı" }, 404);
+        const b = await request.json().catch(() => ({}));
+        const ad = String(b.ad || "").trim().slice(0, 60);
+        const rol = b.rol === undefined ? u.rol : String(b.rol);
+        const aktif = b.aktif === undefined ? u.aktif : (b.aktif ? 1 : 0);
+        if (!ad) return json({ error: "Adı soyadı yazılmalı" }, 400);
+        if (!(ROLLER.includes(rol) || (authed.dev && rol === "gelistirici"))) return json({ error: "Rol geçersiz" }, 400);
+        if (id === authed.id && (rol !== u.rol || !aktif)) return json({ error: "Kendi rolünüzü değiştiremez, kendinizi pasif yapamazsınız" }, 400);
+        if (u.rol === "yonetici" && (rol !== "yonetici" || !aktif)) {
+          const n = (await env.DB.prepare("SELECT COUNT(*) n FROM panel_kullanici WHERE rol='yonetici' AND aktif=1 AND id<>?").bind(id).first()).n;
+          if (!n) return json({ error: "En az bir aktif Yönetici kalmalı" }, 400);
+        }
+        let sifreSql = "", ek = [];
+        if (b.sifre) { if (String(b.sifre).length < 6) return json({ error: "Şifre en az 6 karakter olmalı" }, 400); sifreSql = ", sifre=?"; ek = [await sifreOzetle(String(b.sifre))]; }
+        await env.DB.prepare("UPDATE panel_kullanici SET ad=?, rol=?, aktif=?" + sifreSql + " WHERE id=?").bind(ad, rol, aktif, ...ek, id).run();
+        // Pasif yapılan ya da şifresi/rolü değişenin açık oturumları kapanır
+        if (!aktif || b.sifre || rol !== u.rol) await env.DB.prepare("UPDATE panel_oturum SET kapandi=1 WHERE kullanici_id=?").bind(id).run();
+        return json({ ok: true });
+      }
+
+      // --- Yetki matrisi (sadece Developer) ---
+      if (path === "/api/yetkiler" && request.method === "GET") {
+        if (!authed || !authed.dev) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        await izinSema(env);
+        const r = (await env.DB.prepare("SELECT rol, sekme, ozellik, acik FROM rol_izin").all()).results || [];
+        return json({ katalog: IZIN_KATALOG, roller: ["mudur", "seyis"].map((x) => ({ kod: x, ad: ROL_AD[x] })), izin: r });
+      }
+      if (path === "/api/yetkiler" && request.method === "PUT") {
+        if (!authed || !authed.dev) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        await izinSema(env);
+        const b = await request.json().catch(() => ({}));
+        if (!["mudur", "seyis"].includes(b.rol) || !IZIN_KATALOG.some((x) => x[0] === b.sekme) || !["gor", "yaz", "sil"].includes(b.ozellik)) return json({ error: "Geçersiz" }, 400);
+        await env.DB.prepare("INSERT OR REPLACE INTO rol_izin (rol, sekme, ozellik, acik) VALUES (?,?,?,?)").bind(b.rol, b.sekme, b.ozellik, b.acik ? 1 : 0).run();
+        return json({ ok: true });
       }
       if (path === "/api/nabiz" && request.method === "POST") {
         if (!authed) return json({ error: "unauthorized" }, 401);
@@ -2445,12 +2826,17 @@ const ANA_ISLEYICI = {
       if (path === "/api/hara" && request.method === "GET") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         await haraSema(env);
-        const atlar = (await env.DB.prepare("SELECT * FROM hara_at ORDER BY durum='ayrildi', ad COLLATE NOCASE").all()).results || [];
+        const haraGor = await izinVar(env, authed, "hara", "gor");
+        if (!haraGor && !(await izinVar(env, authed, "seyis", "gor"))) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        let atlar = (await env.DB.prepare("SELECT * FROM hara_at ORDER BY durum='ayrildi', ad COLLATE NOCASE").all()).results || [];
         const olaylar = (await env.DB.prepare("SELECT * FROM hara_olay ORDER BY tarih, id").all()).results || [];
-        return json({ atlar, olaylar });
+        // Sadece seyis ekranı yetkisi olan: misafir sahibinin telefonu gitmez
+        if (!haraGor) atlar = atlar.map((a) => ({ ...a, telefon: "" }));
+        return json({ atlar, olaylar, ben_id: authed.id });
       }
       if (path === "/api/hara/at" && request.method === "POST") {
         if (!authed) return json({ error: "unauthorized" }, 401);
+        if (!(await izinVar(env, authed, "hara", "yaz"))) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
         await haraSema(env);
         const b = await request.json().catch(() => ({}));
         const a = haraAtTemiz(b);
@@ -2465,6 +2851,7 @@ const ANA_ISLEYICI = {
       const haraAtM = path.match(/^\/api\/hara\/at\/(\d+)$/);
       if (haraAtM && request.method === "PUT") {
         if (!authed) return json({ error: "unauthorized" }, 401);
+        if (!(await izinVar(env, authed, "hara", "yaz"))) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
         await haraSema(env);
         const b = await request.json().catch(() => ({}));
         const a = haraAtTemiz(b);
@@ -2476,6 +2863,7 @@ const ANA_ISLEYICI = {
       }
       if (haraAtM && request.method === "DELETE") {
         if (!authed) return json({ error: "unauthorized" }, 401);
+        if (!(await izinVar(env, authed, "hara", "sil"))) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
         await haraSema(env);
         await env.DB.prepare("DELETE FROM hara_olay WHERE at_id=?").bind(haraAtM[1]).run();
         await env.DB.prepare("DELETE FROM hara_at WHERE id=?").bind(haraAtM[1]).run();
@@ -2489,17 +2877,20 @@ const ANA_ISLEYICI = {
         const tip = HARA_OLAY.includes(b.tip) ? b.tip : "";
         const tarih = haraTarih(b.tarih);
         if (!atId || !tip || !tarih) return json({ error: "At, olay türü ve tarih gerekli" }, 400);
+        const haraYaz = await izinVar(env, authed, "hara", "yaz");
+        if (!haraYaz && !(HARA_BAKIM.includes(tip) && (await izinVar(env, authed, "seyis", "yaz")))) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        const foto = /^(https:\/\/buyukdunya\.com)?\/medya\/[A-Za-z0-9._\/-]+$/.test(String(b.foto || "")) ? String(b.foto) : "";
         const at = await env.DB.prepare("SELECT * FROM hara_at WHERE id=?").bind(atId).first();
         if (!at) return json({ error: "At bulunamadı" }, 404);
         let sonuc = haraMetin(b.sonuc, 20);
         if (tip === "kontrol" && !["gebe", "bos", "tekrar"].includes(sonuc)) return json({ error: "Kontrol sonucu seçilmeli" }, 400);
         if (tip === "dogum" && !["canli", "olu"].includes(sonuc)) sonuc = "canli";
         const kim = haraMetin(authed.ad || authed.kadi || "", 60);
-        const r = await env.DB.prepare("INSERT INTO hara_olay (at_id, tip, tarih, sonuc, aciklama, kaydeden) VALUES (?,?,?,?,?,?)")
-          .bind(atId, tip, tarih, sonuc, haraMetin(b.aciklama, 1000), kim).run();
+        const r = await env.DB.prepare("INSERT INTO hara_olay (at_id, tip, tarih, sonuc, aciklama, kaydeden, kaydeden_id, foto, zaman) VALUES (?,?,?,?,?,?,?,?,?)")
+          .bind(atId, tip, tarih, sonuc, haraMetin(b.aciklama, 1000), kim, authed.id, foto, Date.now()).run();
         let tayId = null;
         // Doğum: istenirse tay kaydı da açılır (annesi bu kısrak)
-        if (tip === "dogum" && sonuc === "canli" && haraMetin(b.tay_ad, 80)) {
+        if (tip === "dogum" && sonuc === "canli" && haraMetin(b.tay_ad, 80) && haraYaz) {
           const t = await env.DB.prepare("INSERT INTO hara_at (ad, tur, cins, dogum_yili, renk, baba, anne, anne_id, sahip, telefon, notlar, durum, giris) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'harada', ?)")
             .bind(haraMetin(b.tay_ad, 80), at.tur, "tay", tarih.slice(0, 4), haraMetin(b.tay_renk, 30), haraMetin(b.tay_baba, 80), at.ad, atId, at.sahip, at.telefon, (b.tay_cinsiyet === "erkek" ? "Erkek tay" : b.tay_cinsiyet === "disi" ? "Dişi tay" : "") + " · doğum " + tarih, tarih).run();
           tayId = t.meta.last_row_id;
@@ -2512,6 +2903,11 @@ const ANA_ISLEYICI = {
       if (haraOlayM && request.method === "DELETE") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         await haraSema(env);
+        if (!(await izinVar(env, authed, "hara", "sil"))) {
+          // Seyis kendi girdiği kaydı 24 saat içinde geri alabilir
+          const o = await env.DB.prepare("SELECT kaydeden_id, zaman FROM hara_olay WHERE id=?").bind(haraOlayM[1]).first();
+          if (!o || o.kaydeden_id !== authed.id || !(Date.now() - (o.zaman || 0) < 86400000)) return json({ error: "Bu işlem için yetkiniz yok" }, 403);
+        }
         await env.DB.prepare("DELETE FROM hara_olay WHERE id=?").bind(haraOlayM[1]).run();
         return json({ ok: true });
       }
