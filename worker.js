@@ -247,6 +247,35 @@ async function kisrakSema(env) {
   }
   KISRAK_SEMA = true;
 }
+
+// --- HARA DEFTERİ (15.11.2026): haradaki atlar (kendi + misafir) ve aşım/gebelik/doğum olayları ---
+let HARA_SEMA = false;
+async function haraSema(env) {
+  if (HARA_SEMA) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS hara_at (id INTEGER PRIMARY KEY AUTOINCREMENT, ad TEXT NOT NULL, tur TEXT DEFAULT 'kendi', cins TEXT DEFAULT 'kisrak', dogum_yili TEXT, renk TEXT, baba TEXT, anne TEXT, anne_id INTEGER, sahip TEXT, telefon TEXT, gelis_nedeni TEXT, giris TEXT, cikis TEXT, cip TEXT, notlar TEXT, durum TEXT DEFAULT 'harada', olusturma TEXT DEFAULT (datetime('now')))`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS hara_olay (id INTEGER PRIMARY KEY AUTOINCREMENT, at_id INTEGER NOT NULL, tip TEXT NOT NULL, tarih TEXT NOT NULL, sonuc TEXT, aciklama TEXT, kaydeden TEXT, olusturma TEXT DEFAULT (datetime('now')))`).run();
+  HARA_SEMA = true;
+}
+const HARA_TUR = ["kendi", "misafir"];
+const HARA_CINS = ["kisrak", "aygir", "tay", "diger"];
+const HARA_NEDEN = ["", "gunubirlik_asim", "gebe_kalana_kadar", "dogum", "konaklama"];
+const HARA_OLAY = ["asim", "kontrol", "dogum", "giris", "cikis", "not"];
+function haraTarih(t) { t = String(t || "").trim().slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : ""; }
+function haraMetin(t, n) { return String(t == null ? "" : t).trim().slice(0, n || 200); }
+function haraAtTemiz(b) {
+  return {
+    ad: haraMetin(b.ad, 80),
+    tur: HARA_TUR.includes(b.tur) ? b.tur : "kendi",
+    cins: HARA_CINS.includes(b.cins) ? b.cins : "kisrak",
+    dogum_yili: haraMetin(b.dogum_yili, 10), renk: haraMetin(b.renk, 30),
+    baba: haraMetin(b.baba, 80), anne: haraMetin(b.anne, 80),
+    sahip: haraMetin(b.sahip, 80), telefon: haraMetin(b.telefon, 30),
+    gelis_nedeni: HARA_NEDEN.includes(b.gelis_nedeni) ? b.gelis_nedeni : "",
+    giris: haraTarih(b.giris), cikis: haraTarih(b.cikis),
+    cip: haraMetin(b.cip, 40), notlar: haraMetin(b.notlar, 2000),
+    durum: b.durum === "ayrildi" ? "ayrildi" : "harada",
+  };
+}
 // Kısrağın fotoğrafları: fotolar (JSON dizi) yoksa tek foto_url. İlki kartın büyük fotoğrafı.
 function kisrakFotolari(k) {
   let l = []; try { l = JSON.parse(k.fotolar || "[]"); } catch (e) {}
@@ -652,6 +681,7 @@ Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 5) 🖼️ Galeri: Tür (Fotoğraf/Video) seçilir, "Dosya Seç" ile aynı anda birden çok fotoğraf seçilebilir, Ekle'ye basılır. Fotoğraflar otomatik küçültülüp WebP'ye çevrilir ve dosya adı yükleme tarih-saati olur. En son eklenen galeride en başta görünür. Listeden Sil ile kaldırılır.
 6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir. En üstte "📄 Analiz PDF'inden kısrak ekle": eşleşme analizi PDF'i (ör. Buyukdunya_Mabeyn_Pedigri_Analizi.pdf) seçilir, istenirse aynı anda birden çok; panel PDF'i okur, kısrağın adını ("Büyükdünya × Mabeyn" satırından), baba × anne satırını ve gebelik yılını kendisi doldurur; o adda kısrak zaten varsa PDF'i ona eklenir. Listede her kısrakta "📄 Analizi aç" (PDF'i açar) ve "📄 PDF ekle / değiştir" düğmeleri vardır. PDF SİTEDE GÖRÜNMEZ, sadece panelde durur; sitede kısrak kartında ad, sahip, açıklama (baba × anne) ve tay bilgisi görünür. Her kısrakta "✏️ Düzenle" vardır: ad, sahip, açıklama, tay bilgisi değiştirilir ve İSTENDİĞİ KADAR fotoğraf eklenir (birden çok seçilebilir, kendiliğinden küçültülür); ◀ ▶ ile sıralanır, ✕ ile çıkarılır, ilk fotoğraf sitede kartın büyük fotoğrafı olur, diğerleri altında küçük resim olarak görünür; sonra "Kaydet". Yeni kısrak eklerken de birden çok fotoğraf seçilebilir.
 7) 📑 Rapor: Aygır Analiz Raporu'nun bölümleri. Her bölümün Düzenle düğmesi vardır: Bölüm no, Etiket, Başlık, Alt başlık, "Sitede yeri" (Hakkında, Yarış Analizi, Pedigree, Eşleşme Rehberi, Damızlık ya da Sitede gösterme) ve Metin. Metin yazım kuralları: "## " ile başlayan satır ara başlık; "!! 16 / 32 | Yarış galibiyeti" rakam kutusu; içinde " | " olan alt alta satırlar tablo olur (ilk satır tablo başlığı); "- " madde; "~ " kaynak notu; **kelime** kalın; boş satır yeni paragraf; satırın başına "[gizli] " yazılırsa o satır sitede görünmez ama panelde durur. Yeni bölüm eklenebilir, silinebilir; Sıra numarası küçük olan önce gösterilir. Aynı sayfada rapor PDF'i yüklenir; sitede "Raporu İndir (PDF)" düğmesi çıkar.
+7b) 📒 Hara Defteri: Haradaki bütün atlar — kendi atları ve dışarıdan gelen (misafir) kısraklar; misafirde sahibi, telefonu, ne için geldiği (günübirlik aşım / gebe kalana kadar kalış / doğum için geliş / konaklama), geliş tarihi. Ata dokununca bilgileri ve "Olay ekle": Aşım, Gebelik kontrolü (gebe / boş / tekrar bakılacak), Doğum (canlı doğumda tay adı yazılırsa tay kaydı kendiliğinden açılır, annesi bağlanır), Haraya geldi, Haradan ayrıldı, Not. Tahmini doğum günü son aşımdan 340 gün; üstte "Yaklaşanlar": doğumu 30 gün içinde olanlar, aşımdan 12+ gün geçip kontrolü yapılmamışlar, doğumdan 5–30 gün geçenler (8. gün tekrar aşım). Süzgeç: Harada, Kendi, Misafir, Gebeler, Ayrılanlar, Hepsi. Haradan giden at silinmez, "Haradan ayrıldı" girilir. Stok, masraf, seyis takibi henüz yok (sırada).
 8) 📩 Talepler: Sitedeki talep formundan gelen kısrak eşleştirme talepleri (ad, telefon, kısrak, mesaj) ve WhatsApp düğmesi tıklanma sayıları.
 9) 🤖 Şahlı AI: Bu sohbet.
 10) 🌐 Siteyi Aç: Siteyi yeni sekmede açar. Yapılan değişiklik sitede en geç 1 dakika içinde görünür.
@@ -678,6 +708,12 @@ async function sahliBaglam(env) {
     const yg = (await env.DB.prepare("SELECT * FROM yaris_gecmisi ORDER BY sira ASC, id ASC").all()).results || [];
     parca.push("YARIŞ GEÇMİŞİ:\n" + yg.map((y) => `${y.tarih} · ${y.hipodrom} · ${y.mesafe} · ${y.sonuc} · ${y.aciklama || ""}`).join("\n"));
     const say = async (t) => ((await env.DB.prepare(`SELECT COUNT(*) n FROM ${t}`).first()) || {}).n;
+    try {
+      await haraSema(env);
+      const ha = (await env.DB.prepare("SELECT id, ad, tur, cins, sahip, gelis_nedeni, giris, cikis, durum, anne FROM hara_at ORDER BY id").all()).results || [];
+      const ho = (await env.DB.prepare("SELECT at_id, tip, tarih, sonuc, aciklama FROM hara_olay ORDER BY tarih DESC, id DESC LIMIT 300").all()).results || [];
+      if (ha.length) parca.push("HARA DEFTERİ (atlar ve olaylar; tahmini doğum = son aşım + 340 gün):\n" + ha.map((a) => "- " + a.ad + " (" + a.cins + ", " + a.tur + (a.sahip ? ", sahibi " + a.sahip : "") + (a.gelis_nedeni ? ", " + a.gelis_nedeni : "") + (a.giris ? ", geliş " + a.giris : "") + (a.durum === "ayrildi" ? ", ayrıldı " + (a.cikis || "") : "") + (a.anne ? ", annesi " + a.anne : "") + "): " + ho.filter((o) => o.at_id === a.id).map((o) => o.tarih + " " + o.tip + (o.sonuc ? "=" + o.sonuc : "") + (o.aciklama ? " (" + o.aciklama.slice(0, 80) + ")" : "")).join("; ")).join("\n").slice(0, 15000));
+    } catch (e) {}
     parca.push(`KAYIT SAYILARI: galeri ${await say("gallery")}, haber ${await say("news")}, kısrak ${await say("kisraklar")}, talep ${await say("talepler")}.`);
     await kisrakSema(env);
     const ks = (await env.DB.prepare("SELECT kisrak_adi, sahip_adi, aciklama, tay_bilgisi, pdf_ad, analiz_tarih, analiz_metin FROM kisraklar ORDER BY id DESC LIMIT 30").all()).results || [];
@@ -738,6 +774,7 @@ const PANEL_HTML = `<!DOCTYPE html>
   .layout .wrap { flex:1; min-width:0; max-width:none; margin:0; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .layout .wrap > .card { max-width:760px; }
   .card.hide { display:none; }
+  .hara-suz button { padding:6px 12px; font-size:13px; margin:0; }
   .wrap img { cursor:zoom-in; }
   .wrap .odak img { cursor:crosshair; }
   .lb { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:3000; display:none; align-items:center; justify-content:center; }
@@ -809,6 +846,7 @@ const PANEL_HTML = `<!DOCTYPE html>
     <a data-sec="haber" onclick="showSec('haber')"><span class="mi">📰</span>Haberler</a>
     <a data-sec="galeri" onclick="showSec('galeri')"><span class="mi">🖼️</span>Galeri</a>
     <a data-sec="kisrak" onclick="showSec('kisrak')"><span class="mi">🐎</span>Kısraklar</a>
+    <a data-sec="hara" onclick="showSec('hara')"><span class="mi">📒</span>Hara Defteri</a>
     <a data-sec="rapor" onclick="showSec('rapor')"><span class="mi">📑</span>Rapor</a>
     <a data-sec="talep" onclick="showSec('talep')"><span class="mi">📩</span>Talepler</a>
     <a data-sec="ai" onclick="showSec('ai')"><span class="mi">🤖</span>Şahlı AI</a>
@@ -1005,6 +1043,78 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="kisrak-list"></div>
     </div>
 
+    <div class="card" data-sec="hara">
+      <h2>📒 Hara Defteri</h2>
+      <div class="ipucu">Haradaki bütün atlar (kendi atlarınız + dışarıdan gelen kısraklar), aşımlar, gebelik kontrolleri ve doğumlar. Tahmini doğum günü son aşımdan 340 gün olarak hesaplanır.</div>
+      <div id="hara-yaklasan"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0" id="hara-suz" class="hara-suz">
+        <button class="secondary" data-s="harada" onclick="haraSuz('harada')">Harada</button>
+        <button class="secondary" data-s="kendi" onclick="haraSuz('kendi')">Kendi</button>
+        <button class="secondary" data-s="misafir" onclick="haraSuz('misafir')">Misafir</button>
+        <button class="secondary" data-s="gebe" onclick="haraSuz('gebe')">Gebeler</button>
+        <button class="secondary" data-s="ayrildi" onclick="haraSuz('ayrildi')">Ayrılanlar</button>
+        <button class="secondary" data-s="hepsi" onclick="haraSuz('hepsi')">Hepsi</button>
+      </div>
+      <input type="text" id="hara-ara" placeholder="Ara: at adı, sahibi, telefon…" oninput="haraCiz()">
+      <button onclick="haraFormAc(0)" style="margin:8px 0">＋ At ekle</button>
+      <div id="hara-liste"></div>
+      <div id="hara-msg"></div>
+    </div>
+
+    <div class="card hide" data-sec="hara" id="hara-form-kart" style="display:none">
+      <h2 id="hf-baslik">At ekle</h2>
+      <label>Adı</label><input type="text" id="hf-ad">
+      <label>Kimin</label>
+      <select id="hf-tur" onchange="hfTurDegisti()"><option value="kendi">Kendi atımız</option><option value="misafir">Misafir (dışarıdan gelen)</option></select>
+      <label>Cinsi</label>
+      <select id="hf-cins"><option value="kisrak">Kısrak</option><option value="aygir">Aygır</option><option value="tay">Tay</option><option value="diger">Diğer</option></select>
+      <div id="hf-misafir">
+        <label>Sahibi</label><input type="text" id="hf-sahip">
+        <label>Telefon</label><input type="tel" id="hf-telefon">
+        <label>Ne için geldi</label>
+        <select id="hf-neden"><option value="">—</option><option value="gunubirlik_asim">Günübirlik aşım</option><option value="gebe_kalana_kadar">Gebe kalana kadar kalış</option><option value="dogum">Doğum için geliş</option><option value="konaklama">Konaklama</option></select>
+        <label>Geliş tarihi</label><input type="date" id="hf-giris">
+      </div>
+      <label>Doğum yılı</label><input type="text" id="hf-yil" inputmode="numeric" placeholder="ör. 2018">
+      <label>Renk</label><input type="text" id="hf-renk" placeholder="ör. Doru, Kır, Al">
+      <label>Babası</label><input type="text" id="hf-baba">
+      <label>Annesi</label><input type="text" id="hf-anne">
+      <label>Çip / kayıt no</label><input type="text" id="hf-cip">
+      <label>Notlar</label><textarea id="hf-not"></textarea>
+      <label>Durum</label>
+      <select id="hf-durum"><option value="harada">Harada</option><option value="ayrildi">Haradan ayrıldı</option></select>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button onclick="haraFormKaydet()">Kaydet</button><button class="secondary" onclick="haraFormKapat()">Vazgeç</button></div>
+      <div id="hf-msg"></div>
+    </div>
+
+    <div class="card hide" data-sec="hara" id="hara-detay-kart" style="display:none">
+      <div id="hd-bilgi"></div>
+      <h3 style="margin:14px 0 6px">＋ Olay ekle</h3>
+      <label>Ne oldu</label>
+      <select id="ho-tip" onchange="hoTipDegisti()">
+        <option value="asim">💞 Aşım</option>
+        <option value="kontrol">🩺 Gebelik kontrolü (veteriner)</option>
+        <option value="dogum">🍼 Doğum</option>
+        <option value="giris">⬅️ Haraya geldi</option>
+        <option value="cikis">➡️ Haradan ayrıldı</option>
+        <option value="not">📝 Not</option>
+      </select>
+      <label>Tarih</label><input type="date" id="ho-tarih">
+      <div id="ho-kontrol"><label>Sonuç</label><select id="ho-sonuc-k"><option value="gebe">Gebe</option><option value="bos">Boş (gebe değil)</option><option value="tekrar">Tekrar bakılacak</option></select></div>
+      <div id="ho-dogum">
+        <label>Sonuç</label><select id="ho-sonuc-d"><option value="canli">Canlı doğum</option><option value="olu">Ölü doğum</option></select>
+        <label>Tayın adı (yazılırsa tay kaydı da açılır)</label><input type="text" id="ho-tay-ad">
+        <label>Cinsiyeti</label><select id="ho-tay-cins"><option value="">—</option><option value="disi">Dişi</option><option value="erkek">Erkek</option></select>
+        <label>Rengi</label><input type="text" id="ho-tay-renk">
+        <label>Babası</label><input type="text" id="ho-tay-baba" value="Büyükdünya">
+      </div>
+      <label>Açıklama</label><textarea id="ho-aciklama" placeholder="ör. Veteriner Ahmet Bey, 16. gün ultrason"></textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button onclick="haraOlayKaydet()">Kaydet</button><button class="secondary" onclick="haraDetayKapat()">Listeye dön</button></div>
+      <div id="ho-msg"></div>
+      <h3 style="margin:16px 0 6px">Geçmiş</h3>
+      <div id="hd-olaylar"></div>
+    </div>
+
     <div class="card" data-sec="rapor">
       <h2>Aygır Analiz Raporu - Bölümler</h2>
       <div id="rapor-list"></div>
@@ -1123,6 +1233,7 @@ function showSec(sec, gecmistenMi) {
   try { localStorage.setItem("panelSec", sec); } catch (e) {}
   SEKME = sec; nabiz();
   if (sec === "canli") canliBaslat(); else canliDurdur();
+  if (sec === "hara") { HARA_AT = 0; haraKartlar("liste"); haraYukle(); }
 }
 
 function showMsg(id, text, ok) {
@@ -1698,6 +1809,167 @@ async function loadKisrak() {
       + '</div>';
   }).join("") || "<p>Henüz kısrak yok.</p>";
 }
+
+// ---------------- HARA DEFTERİ ----------------
+let HARA = { atlar: [], olaylar: [] }, HARA_SUZ = "harada", HARA_AT = 0, HARA_FORM = 0;
+const GEBELIK_GUN = 340;
+const HARA_NEDEN_AD = { gunubirlik_asim: "Günübirlik aşım", gebe_kalana_kadar: "Gebe kalana kadar kalış", dogum: "Doğum için geliş", konaklama: "Konaklama" };
+const HARA_CINS_AD = { kisrak: "Kısrak", aygir: "Aygır", tay: "Tay", diger: "Diğer" };
+const HARA_OLAY_AD = { asim: "💞 Aşım", kontrol: "🩺 Gebelik kontrolü", dogum: "🍼 Doğum", giris: "⬅️ Haraya geldi", cikis: "➡️ Haradan ayrıldı", not: "📝 Not" };
+const HARA_SONUC_AD = { gebe: "Gebe", bos: "Boş", tekrar: "Tekrar bakılacak", canli: "Canlı", olu: "Ölü doğum" };
+function hBugun() { const d = new Date(Date.now() + 3 * 3600000); return d.toISOString().slice(0, 10); }
+function hGunEkle(t, n) { const d = new Date(t + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function hFark(a, b) { return Math.round((new Date(b + "T00:00:00Z") - new Date(a + "T00:00:00Z")) / 86400000); }
+function hTr(t) { if (!t) return ""; const p = t.split("-"); return p[2] + "." + p[1] + "." + p[0]; }
+function haraOlaylari(id) { return HARA.olaylar.filter(function (o) { return o.at_id === id; }); }
+// Kısrağın üreme durumu: son doğum, ondan sonraki son aşım, ondan sonraki son kontrol
+function haraDurum(at) {
+  if (at.cins !== "kisrak") return null;
+  const ev = haraOlaylari(at.id);
+  let D = "", A = "", K = null;
+  ev.forEach(function (o) { if (o.tip === "dogum" && o.tarih > D) D = o.tarih; });
+  ev.forEach(function (o) { if (o.tip === "asim" && o.tarih >= D && o.tarih > A) A = o.tarih; });
+  if (A) ev.forEach(function (o) { if (o.tip === "kontrol" && o.tarih >= A && (!K || o.tarih >= K.tarih)) K = o; });
+  const bugun = hBugun();
+  if (A && K && K.sonuc === "gebe") { const dg = hGunEkle(A, GEBELIK_GUN); return { kod: "gebe", etiket: "Gebe · doğum ~" + hTr(dg), renk: "#1e7e34", dogum: dg, A: A }; }
+  if (A && K && K.sonuc === "bos") return { kod: "bos", etiket: "Boş (son kontrol " + hTr(K.tarih) + ")", renk: "#c0392b", A: A };
+  if (A && K) return { kod: "tekrar", etiket: "Kontrol tekrarlanacak", renk: "#b9770e", A: A };
+  if (A) return { kod: "asim", etiket: "Aşım " + hTr(A) + " · kontrol bekleniyor", renk: "#b9770e", A: A, kontrol: hGunEkle(A, 14) };
+  if (D) return { kod: "dogurdu", etiket: "Doğum yaptı " + hTr(D) + " (" + hFark(D, bugun) + " gün)", renk: "#2c5aa0", D: D };
+  return null;
+}
+function haraYaklasan() {
+  const bugun = hBugun(), l = [];
+  HARA.atlar.forEach(function (at) {
+    if (at.durum === "ayrildi") return;
+    const d = haraDurum(at); if (!d) return;
+    if (d.kod === "gebe") { const k = hFark(bugun, d.dogum); if (k <= 30) l.push([k, "🍼 <b>" + kEsc(at.ad) + "</b>: doğum bekleniyor ~" + hTr(d.dogum) + (k >= 0 ? " (" + k + " gün kaldı)" : " (" + (-k) + " gün geçti)"), at.id]); }
+    if (d.kod === "asim") { const g = hFark(d.A, bugun); if (g >= 12) l.push([14 - g, "🩺 <b>" + kEsc(at.ad) + "</b>: aşımdan " + g + " gün geçti, gebelik kontrolü zamanı", at.id]); }
+    if (d.kod === "tekrar") l.push([0, "🩺 <b>" + kEsc(at.ad) + "</b>: kontrol tekrarlanacak", at.id]);
+    if (d.kod === "dogurdu") { const g = hFark(d.D, bugun); if (g >= 5 && g <= 30) l.push([8 - g, "💞 <b>" + kEsc(at.ad) + "</b>: doğumdan " + g + " gün geçti — 8. gün tekrar aşım", at.id]); }
+  });
+  l.sort(function (a, b) { return a[0] - b[0]; });
+  return l;
+}
+async function haraYukle() {
+  try { HARA = await (await fetch("/api/hara")).json(); } catch (e) { HARA = { atlar: [], olaylar: [] }; }
+  haraCiz();
+  if (HARA_AT) haraDetayCiz();
+}
+function haraSuz(s) { HARA_SUZ = s; haraCiz(); }
+function haraCiz() {
+  document.querySelectorAll("#hara-suz button").forEach(function (b) { b.className = b.dataset.s === HARA_SUZ ? "" : "secondary"; });
+  const y = haraYaklasan();
+  document.getElementById("hara-yaklasan").innerHTML = y.length
+    ? '<div style="background:#fff8e6;border:1px solid #f0d58c;border-radius:10px;padding:10px 12px"><b>⏰ Yaklaşanlar</b>' + y.map(function (x) { return '<div style="margin-top:6px;cursor:pointer" onclick="haraDetayAc(' + x[2] + ')">' + x[1] + '</div>'; }).join("") + '</div>'
+    : "";
+  const ara = (document.getElementById("hara-ara").value || "").toLocaleLowerCase("tr");
+  const bugun = hBugun();
+  const l = HARA.atlar.filter(function (at) {
+    const d = haraDurum(at);
+    if (HARA_SUZ === "harada" && at.durum === "ayrildi") return false;
+    if (HARA_SUZ === "ayrildi" && at.durum !== "ayrildi") return false;
+    if ((HARA_SUZ === "kendi" || HARA_SUZ === "misafir") && (at.tur !== HARA_SUZ || at.durum === "ayrildi")) return false;
+    if (HARA_SUZ === "gebe" && !(d && d.kod === "gebe" && at.durum !== "ayrildi")) return false;
+    if (ara && (at.ad + " " + (at.sahip || "") + " " + (at.telefon || "")).toLocaleLowerCase("tr").indexOf(ara) < 0) return false;
+    return true;
+  });
+  document.getElementById("hara-liste").innerHTML = l.map(function (at) {
+    const d = haraDurum(at);
+    const kalis = at.tur === "misafir" && at.giris && at.durum !== "ayrildi" ? " · " + hFark(at.giris, bugun) + ". gün" : "";
+    return '<div class="item" style="cursor:pointer" onclick="haraDetayAc(' + at.id + ')">'
+      + '<b>' + kEsc(at.ad) + '</b> <small>' + HARA_CINS_AD[at.cins] + (at.tur === "misafir" ? " · misafir" : "") + (at.durum === "ayrildi" ? " · ayrıldı" : "") + '</small><br>'
+      + (at.tur === "misafir" ? '<small>' + kEsc(at.sahip || "sahibi yazılmamış") + (at.gelis_nedeni ? " · " + HARA_NEDEN_AD[at.gelis_nedeni] : "") + kalis + '</small><br>' : "")
+      + (d ? '<span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:12px;color:#fff;font-size:12px;background:' + d.renk + '">' + d.etiket + '</span>' : "")
+      + '</div>';
+  }).join("") || '<div class="ipucu">Kayıt yok.' + (HARA.atlar.length ? "" : " İlk atı “＋ At ekle” ile ekleyin.") + '</div>';
+}
+function hfTurDegisti() { document.getElementById("hf-misafir").style.display = document.getElementById("hf-tur").value === "misafir" ? "" : "none"; }
+function haraKartlar(goster) {
+  document.querySelectorAll('.card[data-sec="hara"]').forEach(function (c) {
+    const id = c.id || "liste";
+    c.style.display = (goster === "liste" && !c.id) || c.id === goster ? "" : "none";
+  });
+  const w = document.querySelector(".layout .wrap"); if (w) w.scrollTop = 0; window.scrollTo(0, 0);
+}
+function haraFormAc(id) {
+  HARA_FORM = id;
+  const at = HARA.atlar.find(function (x) { return x.id === id; }) || { tur: "kendi", cins: "kisrak", durum: "harada", giris: hBugun() };
+  document.getElementById("hf-baslik").textContent = id ? "✏️ " + at.ad + " — bilgileri düzenle" : "＋ At ekle";
+  const alan = { ad: "ad", tur: "tur", cins: "cins", sahip: "sahip", telefon: "telefon", neden: "gelis_nedeni", giris: "giris", yil: "dogum_yili", renk: "renk", baba: "baba", anne: "anne", cip: "cip", not: "notlar", durum: "durum" };
+  Object.keys(alan).forEach(function (k) { document.getElementById("hf-" + k).value = at[alan[k]] || (k === "tur" ? "kendi" : k === "cins" ? "kisrak" : k === "durum" ? "harada" : ""); });
+  document.getElementById("hf-msg").innerHTML = "";
+  hfTurDegisti(); haraKartlar("hara-form-kart");
+}
+function haraFormKapat() { haraKartlar(HARA_FORM && HARA_AT ? "hara-detay-kart" : "liste"); }
+async function haraFormKaydet() {
+  const v = function (k) { return document.getElementById("hf-" + k).value; };
+  const body = { ad: v("ad"), tur: v("tur"), cins: v("cins"), sahip: v("sahip"), telefon: v("telefon"), gelis_nedeni: v("neden"), giris: v("giris"), dogum_yili: v("yil"), renk: v("renk"), baba: v("baba"), anne: v("anne"), cip: v("cip"), notlar: v("not"), durum: v("durum") };
+  if (body.tur !== "misafir") { body.sahip = ""; body.telefon = ""; body.gelis_nedeni = ""; if (!HARA_FORM) body.giris = ""; }
+  const r = await fetch(HARA_FORM ? "/api/hara/at/" + HARA_FORM : "/api/hara/at", { method: HARA_FORM ? "PUT" : "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) { showMsg("hf-msg", d.error || "Kaydedilemedi", false); return; }
+  await haraYukle();
+  if (HARA_FORM) haraDetayAc(HARA_FORM); else { haraKartlar("liste"); showMsg("hara-msg", "✅ " + body.ad + " eklendi", true); }
+}
+function haraDetayAc(id) { HARA_AT = id; haraDetayCiz(); hoSifirla(); haraKartlar("hara-detay-kart"); }
+function haraDetayKapat() { HARA_AT = 0; haraKartlar("liste"); haraCiz(); }
+function haraDetayCiz() {
+  const at = HARA.atlar.find(function (x) { return x.id === HARA_AT; }); if (!at) { haraDetayKapat(); return; }
+  const d = haraDurum(at), bugun = hBugun();
+  const satir = function (a, b) { return b ? '<div><small style="color:#666">' + a + ':</small> ' + kEsc(String(b)) + '</div>' : ""; };
+  const taylar = HARA.atlar.filter(function (x) { return x.anne_id === at.id; });
+  document.getElementById("hd-bilgi").innerHTML = '<h2>' + kEsc(at.ad) + ' <small style="font-weight:normal">' + HARA_CINS_AD[at.cins] + (at.tur === "misafir" ? " · misafir" : " · kendi") + '</small></h2>'
+    + (d ? '<div style="margin-bottom:8px"><span style="padding:3px 10px;border-radius:12px;color:#fff;background:' + d.renk + '">' + d.etiket + '</span></div>' : "")
+    + (d && d.kod === "gebe" ? '<div class="ipucu">Aşım ' + hTr(d.A) + ' → tahmini doğum ' + hTr(d.dogum) + ' (' + hFark(bugun, d.dogum) + ' gün)</div>' : "")
+    + (d && d.kod === "asim" ? '<div class="ipucu">Gebelik kontrolü genelde aşımdan 14–16 gün sonra: ' + hTr(d.kontrol) + ' civarı</div>' : "")
+    + (d && d.kod === "dogurdu" ? '<div class="ipucu">Tekrar aşım (tay kızgınlığı) doğumdan 8. gün: ' + hTr(hGunEkle(d.D, 8)) + '</div>' : "")
+    + satir("Sahibi", at.sahip) + (at.telefon ? '<div><small style="color:#666">Telefon:</small> <a href="tel:' + kEsc(at.telefon) + '">' + kEsc(at.telefon) + '</a></div>' : "")
+    + satir("Ne için geldi", HARA_NEDEN_AD[at.gelis_nedeni]) + satir("Geliş", hTr(at.giris) + (at.tur === "misafir" && at.giris && at.durum !== "ayrildi" ? " (" + hFark(at.giris, bugun) + " gündür harada)" : ""))
+    + satir("Ayrılış", hTr(at.cikis)) + satir("Doğum yılı", at.dogum_yili) + satir("Renk", at.renk) + satir("Babası", at.baba) + satir("Annesi", at.anne) + satir("Çip / kayıt no", at.cip) + satir("Not", at.notlar)
+    + (taylar.length ? '<div><small style="color:#666">Tayları:</small> ' + taylar.map(function (t) { return '<a href="javascript:void 0" onclick="haraDetayAc(' + t.id + ')">' + kEsc(t.ad) + '</a>'; }).join(", ") + '</div>' : "")
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button onclick="haraFormAc(' + at.id + ')">✏️ Bilgileri düzenle</button><button class="danger" onclick="haraAtSil(' + at.id + ')">Sil</button></div>';
+  const ev = haraOlaylari(at.id).slice().reverse();
+  document.getElementById("hd-olaylar").innerHTML = ev.map(function (o) {
+    return '<div class="item"><b>' + hTr(o.tarih) + '</b> · ' + HARA_OLAY_AD[o.tip] + (o.sonuc ? ' — <b>' + (HARA_SONUC_AD[o.sonuc] || kEsc(o.sonuc)) + '</b>' : "")
+      + (o.aciklama ? '<br><small>' + kEsc(o.aciklama) + '</small>' : "") + (o.kaydeden ? '<br><small style="color:#888">' + kEsc(o.kaydeden) + '</small>' : "")
+      + ' <button class="danger" style="padding:2px 8px;float:right" onclick="haraOlaySil(' + o.id + ')">✕</button></div>';
+  }).join("") || '<div class="ipucu">Henüz kayıt yok.</div>';
+}
+function hoSifirla() {
+  const at = HARA.atlar.find(function (x) { return x.id === HARA_AT; }) || {};
+  document.getElementById("ho-tip").value = at.cins === "kisrak" ? "asim" : "not";
+  document.getElementById("ho-tarih").value = hBugun();
+  ["ho-aciklama", "ho-tay-ad", "ho-tay-renk"].forEach(function (i) { document.getElementById(i).value = ""; });
+  document.getElementById("ho-tay-baba").value = "Büyükdünya";
+  document.getElementById("ho-msg").innerHTML = "";
+  hoTipDegisti();
+}
+function hoTipDegisti() {
+  const t = document.getElementById("ho-tip").value;
+  document.getElementById("ho-kontrol").style.display = t === "kontrol" ? "" : "none";
+  document.getElementById("ho-dogum").style.display = t === "dogum" ? "" : "none";
+}
+async function haraOlayKaydet() {
+  const tip = document.getElementById("ho-tip").value;
+  const body = { at_id: HARA_AT, tip: tip, tarih: document.getElementById("ho-tarih").value, aciklama: document.getElementById("ho-aciklama").value };
+  if (tip === "kontrol") body.sonuc = document.getElementById("ho-sonuc-k").value;
+  if (tip === "dogum") { body.sonuc = document.getElementById("ho-sonuc-d").value; body.tay_ad = document.getElementById("ho-tay-ad").value; body.tay_cinsiyet = document.getElementById("ho-tay-cins").value; body.tay_renk = document.getElementById("ho-tay-renk").value; body.tay_baba = document.getElementById("ho-tay-baba").value; }
+  const r = await fetch("/api/hara/olay", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) { showMsg("ho-msg", d.error || "Kaydedilemedi", false); return; }
+  await haraYukle(); hoSifirla();
+  showMsg("ho-msg", "✅ Kaydedildi" + (d.tay_id ? " — tay kaydı da açıldı" : ""), true);
+}
+async function haraOlaySil(id) {
+  if (!confirm("Bu kayıt silinsin mi?")) return;
+  await fetch("/api/hara/olay/" + id, { method: "DELETE" }); haraYukle();
+}
+async function haraAtSil(id) {
+  const at = HARA.atlar.find(function (x) { return x.id === id; });
+  if (!confirm((at ? at.ad : "Bu at") + " ve bütün geçmişi silinsin mi? (Haradan ayrıldıysa silmek yerine 'Haradan ayrıldı' kaydı girin.)")) return;
+  await fetch("/api/hara/at/" + id, { method: "DELETE" }); HARA_AT = 0; await haraYukle(); haraKartlar("liste");
+}
 function kisrakDuzAc(id) {
   const k = KISRAKLAR.find(function (x) { return x.id === id; }); if (!k) return;
   KD = { id: id, fotolar: (k.fotolar || []).slice() };
@@ -2166,6 +2438,81 @@ const ANA_ISLEYICI = {
       if (galMatch && request.method === "DELETE") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         await env.DB.prepare("DELETE FROM gallery WHERE id=?").bind(galMatch[1]).run();
+        return json({ ok: true });
+      }
+
+      // --- Hara Defteri ---
+      if (path === "/api/hara" && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await haraSema(env);
+        const atlar = (await env.DB.prepare("SELECT * FROM hara_at ORDER BY durum='ayrildi', ad COLLATE NOCASE").all()).results || [];
+        const olaylar = (await env.DB.prepare("SELECT * FROM hara_olay ORDER BY tarih, id").all()).results || [];
+        return json({ atlar, olaylar });
+      }
+      if (path === "/api/hara/at" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await haraSema(env);
+        const b = await request.json().catch(() => ({}));
+        const a = haraAtTemiz(b);
+        if (!a.ad) return json({ error: "Atın adı yazılmalı" }, 400);
+        const anneId = Number(b.anne_id) || null;
+        const r = await env.DB.prepare("INSERT INTO hara_at (ad, tur, cins, dogum_yili, renk, baba, anne, anne_id, sahip, telefon, gelis_nedeni, giris, cikis, cip, notlar, durum) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+          .bind(a.ad, a.tur, a.cins, a.dogum_yili, a.renk, a.baba, a.anne, anneId, a.sahip, a.telefon, a.gelis_nedeni, a.giris, a.cikis, a.cip, a.notlar, a.durum).run();
+        const id = r.meta.last_row_id;
+        if (a.giris && a.tur === "misafir") await env.DB.prepare("INSERT INTO hara_olay (at_id, tip, tarih, aciklama) VALUES (?, 'giris', ?, ?)").bind(id, a.giris, "Haraya geldi").run();
+        return json({ ok: true, id });
+      }
+      const haraAtM = path.match(/^\/api\/hara\/at\/(\d+)$/);
+      if (haraAtM && request.method === "PUT") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await haraSema(env);
+        const b = await request.json().catch(() => ({}));
+        const a = haraAtTemiz(b);
+        if (!a.ad) return json({ error: "Atın adı yazılmalı" }, 400);
+        const r = await env.DB.prepare("UPDATE hara_at SET ad=?, tur=?, cins=?, dogum_yili=?, renk=?, baba=?, anne=?, sahip=?, telefon=?, gelis_nedeni=?, giris=?, cikis=?, cip=?, notlar=?, durum=? WHERE id=?")
+          .bind(a.ad, a.tur, a.cins, a.dogum_yili, a.renk, a.baba, a.anne, a.sahip, a.telefon, a.gelis_nedeni, a.giris, a.cikis, a.cip, a.notlar, a.durum, haraAtM[1]).run();
+        if (!r.meta.changes) return json({ error: "Kayıt bulunamadı" }, 404);
+        return json({ ok: true });
+      }
+      if (haraAtM && request.method === "DELETE") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await haraSema(env);
+        await env.DB.prepare("DELETE FROM hara_olay WHERE at_id=?").bind(haraAtM[1]).run();
+        await env.DB.prepare("DELETE FROM hara_at WHERE id=?").bind(haraAtM[1]).run();
+        return json({ ok: true });
+      }
+      if (path === "/api/hara/olay" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await haraSema(env);
+        const b = await request.json().catch(() => ({}));
+        const atId = Number(b.at_id) || 0;
+        const tip = HARA_OLAY.includes(b.tip) ? b.tip : "";
+        const tarih = haraTarih(b.tarih);
+        if (!atId || !tip || !tarih) return json({ error: "At, olay türü ve tarih gerekli" }, 400);
+        const at = await env.DB.prepare("SELECT * FROM hara_at WHERE id=?").bind(atId).first();
+        if (!at) return json({ error: "At bulunamadı" }, 404);
+        let sonuc = haraMetin(b.sonuc, 20);
+        if (tip === "kontrol" && !["gebe", "bos", "tekrar"].includes(sonuc)) return json({ error: "Kontrol sonucu seçilmeli" }, 400);
+        if (tip === "dogum" && !["canli", "olu"].includes(sonuc)) sonuc = "canli";
+        const kim = haraMetin(authed.ad || authed.kadi || "", 60);
+        const r = await env.DB.prepare("INSERT INTO hara_olay (at_id, tip, tarih, sonuc, aciklama, kaydeden) VALUES (?,?,?,?,?,?)")
+          .bind(atId, tip, tarih, sonuc, haraMetin(b.aciklama, 1000), kim).run();
+        let tayId = null;
+        // Doğum: istenirse tay kaydı da açılır (annesi bu kısrak)
+        if (tip === "dogum" && sonuc === "canli" && haraMetin(b.tay_ad, 80)) {
+          const t = await env.DB.prepare("INSERT INTO hara_at (ad, tur, cins, dogum_yili, renk, baba, anne, anne_id, sahip, telefon, notlar, durum, giris) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'harada', ?)")
+            .bind(haraMetin(b.tay_ad, 80), at.tur, "tay", tarih.slice(0, 4), haraMetin(b.tay_renk, 30), haraMetin(b.tay_baba, 80), at.ad, atId, at.sahip, at.telefon, (b.tay_cinsiyet === "erkek" ? "Erkek tay" : b.tay_cinsiyet === "disi" ? "Dişi tay" : "") + " · doğum " + tarih, tarih).run();
+          tayId = t.meta.last_row_id;
+        }
+        if (tip === "cikis") await env.DB.prepare("UPDATE hara_at SET durum='ayrildi', cikis=? WHERE id=?").bind(tarih, atId).run();
+        if (tip === "giris") await env.DB.prepare("UPDATE hara_at SET durum='harada', giris=?, cikis='' WHERE id=?").bind(tarih, atId).run();
+        return json({ ok: true, id: r.meta.last_row_id, tay_id: tayId });
+      }
+      const haraOlayM = path.match(/^\/api\/hara\/olay\/(\d+)$/);
+      if (haraOlayM && request.method === "DELETE") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await haraSema(env);
+        await env.DB.prepare("DELETE FROM hara_olay WHERE id=?").bind(haraOlayM[1]).run();
         return json({ ok: true });
       }
 
