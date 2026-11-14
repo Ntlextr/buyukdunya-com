@@ -50,12 +50,161 @@ function getCookie(request, name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function isAuthed(request, env) {
-  const token = getCookie(request, "session");
-  if (!token) return false;
-  const expected = await signToken(env.PANEL_PASSWORD);
-  return token === expected;
+// =====================================================================
+// KİŞİYE ÖZEL GİRİŞ + OTURUM + CANLI TAKİP + MERKEZ GİRİŞİ (14.11.2026)
+// Serdar: "Güven ayrı, ben ayrı gireyim; benimki diğer panellerle aynı olsun; Merkez'den şifresiz
+// gireyim; kim online görüp canlı takip edeyim."
+// - panel_kullanici: kişiler (şifre PBKDF2 özeti, Luxury/seraytekno ile AYNI biçim: pbkdf2$tur$tuz$özet).
+//   rol "gelistirici" (Developer: Canlı İzleme'yi görür) | "yonetici".
+// - Eski ortak şifre (PANEL_PASSWORD) SADECE acil durum girişi (kullanıcı adı boş bırakılır; kimlik id 0).
+// - panel_oturum: çerez "oturum" = rastgele anahtar; veritabanında SHA-256 özeti. 30 gün, 14 gün kullanılmazsa biter.
+// - panel_hareket: ekran açılışı (ekran), dokunuş (tik — sadece düğme yazısı), işlem (islem — başarılı yazma isteği).
+// - Merkez girişi: GET /merkez-giris?b=<bilet> (merkez.seraytekno.com imzalı, 5 dk, tek kullanımlık) → Serdar'ın
+//   Developer hesabıyla oturum. Biçim seraytekno-API/merkez_giris.js ile aynı. Secret: MERKEZ_ANAHTAR.
+// =====================================================================
+const MERKEZ_KOD = "buyukdunya";
+const OTURUM_GUN = 30, BOSTA_GUN = 14;
+const bdEnc = (s) => new TextEncoder().encode(String(s));
+function bdB64u(bayt) { let s = ""; const a = new Uint8Array(bayt); for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+function bdB64uBayt(s) { s = String(s).replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; const h = atob(s), a = new Uint8Array(h.length); for (let i = 0; i < h.length; i++) a[i] = h.charCodeAt(i); return a; }
+function bdEsit(a, b) { a = String(a); b = String(b); if (a.length !== b.length) return false; let f = 0; for (let i = 0; i < a.length; i++) f |= a.charCodeAt(i) ^ b.charCodeAt(i); return f === 0; }
+async function sha256Hex(s) { const h = await crypto.subtle.digest("SHA-256", bdEnc(s)); return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, "0")).join(""); }
+async function hmacB64u(anahtar, metin) { const k = await crypto.subtle.importKey("raw", bdEnc(anahtar), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); return bdB64u(await crypto.subtle.sign("HMAC", k, bdEnc(metin))); }
+
+// Şifre özeti (PBKDF2-SHA256, 100.000 tur) — Luxury'deki sifreOzetle/sifreDogrula ile aynı biçim
+async function sifreOzetle(sifre) {
+  const tuz = crypto.getRandomValues(new Uint8Array(16));
+  const k = await crypto.subtle.importKey("raw", bdEnc(sifre), "PBKDF2", false, ["deriveBits"]);
+  const b = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: tuz, iterations: 100000 }, k, 256);
+  return "pbkdf2$100000$" + bdB64u(tuz) + "$" + bdB64u(b);
 }
+async function sifreDogrula(sifre, kayitli) {
+  const p = String(kayitli || "").split("$");
+  if (p.length !== 4 || p[0] !== "pbkdf2" || !sifre) return false;
+  const k = await crypto.subtle.importKey("raw", bdEnc(sifre), "PBKDF2", false, ["deriveBits"]);
+  const b = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: bdB64uBayt(p[2]), iterations: parseInt(p[1], 10) || 100000 }, k, 256);
+  return bdEsit(bdB64u(b), p[3]);
+}
+// --- sifreOzetle / sifreDogrula sonu ---
+
+// Tablolar (ilk istekte bir kez)
+let SEMA_HAZIR = false;
+async function semaHazirla(env) {
+  if (SEMA_HAZIR) return;
+  await env.DB.batch([
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS panel_kullanici (id INTEGER PRIMARY KEY AUTOINCREMENT, kadi TEXT NOT NULL UNIQUE COLLATE NOCASE, ad TEXT, rol TEXT NOT NULL DEFAULT 'yonetici', sifre TEXT NOT NULL, aktif INTEGER DEFAULT 1, olusturma TEXT DEFAULT (datetime('now')), son_giris INTEGER)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS panel_oturum (ozet TEXT PRIMARY KEY, kullanici_id INTEGER NOT NULL, olusturma INTEGER, son_gorulme INTEGER, bitis INTEGER, ip TEXT, cihaz TEXT, yol TEXT, sekme TEXT, kapandi INTEGER DEFAULT 0)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS panel_hareket (id INTEGER PRIMARY KEY AUTOINCREMENT, zaman INTEGER NOT NULL, kullanici_id INTEGER, oturum TEXT, tur TEXT, sekme TEXT, detay TEXT)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS ix_panel_hareket_zaman ON panel_hareket (zaman)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS giris_kilidi (anahtar TEXT PRIMARY KEY, sayi INTEGER, bitis INTEGER)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS merkez_bilet (n TEXT PRIMARY KEY, zaman INTEGER)"),
+  ]);
+  SEMA_HAZIR = true;
+}
+
+function cihazAdi(ua) {
+  ua = String(ua || "");
+  const t = /iPhone|Android.*Mobile|Mobile/i.test(ua) ? "📱 Telefon" : /iPad|Tablet|Android/i.test(ua) ? "📱 Tablet" : "💻 Bilgisayar";
+  return t;
+}
+const ISTEK_KIMLIK = new WeakMap();
+
+// Oturum açar → Set-Cookie değeri
+async function oturumAc(env, request, kullaniciId, yol) {
+  await semaHazirla(env);
+  const anahtar = bdB64u(crypto.getRandomValues(new Uint8Array(32)));
+  const simdi = Date.now();
+  await env.DB.prepare("INSERT INTO panel_oturum (ozet, kullanici_id, olusturma, son_gorulme, bitis, ip, cihaz, yol) VALUES (?,?,?,?,?,?,?,?)")
+    .bind(await sha256Hex(anahtar), kullaniciId, simdi, simdi, simdi + OTURUM_GUN * 86400000, (request.headers.get("cf-connecting-ip") || "").slice(0, 60),
+      cihazAdi(request.headers.get("user-agent")) + (request.cf && request.cf.city ? " · " + request.cf.city : ""), yol).run();
+  if (kullaniciId > 0) await env.DB.prepare("UPDATE panel_kullanici SET son_giris=? WHERE id=?").bind(simdi, kullaniciId).run();
+  await env.DB.prepare("DELETE FROM panel_hareket WHERE zaman < ?").bind(simdi - 180 * 86400000).run().catch(() => {});
+  return `oturum=${anahtar}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${OTURUM_GUN * 86400}`;
+}
+
+// İsteğin kimliği: { id, ad, kadi, rol, dev, yol, oturum } ya da null
+async function kimlikAl(request, env) {
+  if (ISTEK_KIMLIK.has(request)) return ISTEK_KIMLIK.get(request);
+  let k = null;
+  const anahtar = getCookie(request, "oturum");
+  if (anahtar && env.DB) {
+    await semaHazirla(env);
+    const ozet = await sha256Hex(anahtar);
+    const o = await env.DB.prepare("SELECT * FROM panel_oturum WHERE ozet=? AND kapandi=0").bind(ozet).first();
+    const simdi = Date.now();
+    if (o && o.bitis > simdi && simdi - (o.son_gorulme || 0) < BOSTA_GUN * 86400000) {
+      if (o.kullanici_id === 0) k = { id: 0, ad: "Acil giriş", kadi: "acil", rol: "gelistirici" };
+      else {
+        const u = await env.DB.prepare("SELECT id, ad, kadi, rol FROM panel_kullanici WHERE id=? AND aktif=1").bind(o.kullanici_id).first();
+        if (u) k = { ...u };
+      }
+      if (k) {
+        k.dev = k.rol === "gelistirici"; k.yol = o.yol || ""; k.oturum = ozet; k.sekme = o.sekme || "";
+        if (simdi - (o.son_gorulme || 0) > 30000) await env.DB.prepare("UPDATE panel_oturum SET son_gorulme=? WHERE ozet=?").bind(simdi, ozet).run();
+      }
+    }
+  }
+  ISTEK_KIMLIK.set(request, k);
+  return k;
+}
+async function isAuthed(request, env) { return kimlikAl(request, env); }
+
+// Hareket kaydı (tur: ekran | tik | islem | giris | cikis)
+async function hareketYaz(env, k, tur, sekme, detay) {
+  if (!k) return;
+  try {
+    await env.DB.prepare("INSERT INTO panel_hareket (zaman, kullanici_id, oturum, tur, sekme, detay) VALUES (?,?,?,?,?,?)")
+      .bind(Date.now(), k.id, (k.oturum || "").slice(0, 12), tur, String(sekme || "").slice(0, 30), String(detay || "").slice(0, 200)).run();
+  } catch (e) {}
+}
+
+// Başarılı yazma isteğinin okunur adı
+const ISLEM_KONU = { "profile": "Yarış sayaçları", "news": "Haber", "yaris-gecmisi": "Yarış geçmişi", "gallery": "Galeri resmi", "kisrak": "Kısrak", "site-icerik": "Site metinleri / ayarları", "upload": "Dosya yükleme", "rapor": "Rapor bölümü", "rapor-pdf": "Rapor PDF", "sahli-ai": "Şahlı AI'ya soru", "talepler": "Talep", "sifre": "Kendi şifresi" };
+function islemAdi(method, path) {
+  const p = path.split("/"); const konu = ISLEM_KONU[p[2]] || p[2];
+  if (p[2] === "sahli-ai" || p[2] === "upload") return konu;
+  if (p[2] === "sifre") return "Kendi şifresini değiştirdi";
+  return konu + (method === "DELETE" ? " silindi" : method === "PUT" ? " güncellendi" : " kaydedildi") + (p[3] ? " (#" + p[3] + ")" : "");
+}
+
+// Merkez bileti doğrula (tek kullanımlık, en çok 5 dk)
+async function merkezBiletDogrula(env, bilet) {
+  if (!env.MERKEZ_ANAHTAR || String(env.MERKEZ_ANAHTAR).length < 32) return { hata: "Merkez bağlantısı kurulmamış" };
+  const [govde, im] = String(bilet || "").split(".");
+  if (!govde || !im || govde.length > 4000) return { hata: "Bilet geçersiz" };
+  if (!bdEsit(im, await hmacB64u(env.MERKEZ_ANAHTAR, govde))) return { hata: "Bilet geçersiz" };
+  let y; try { y = JSON.parse(new TextDecoder().decode(bdB64uBayt(govde))); } catch (e) { return { hata: "Bilet geçersiz" }; }
+  const sn = Math.floor(Date.now() / 1000);
+  if (y.t !== "giris") return { hata: "Bilet türü yanlış" };
+  if (y.f !== MERKEZ_KOD) return { hata: "Bilet bu site için değil" };
+  if (!(Number(y.z) > sn) || Number(y.z) - sn > 300) return { hata: "Biletin süresi dolmuş" };
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(String(y.n || ""))) return { hata: "Bilet geçersiz" };
+  await semaHazirla(env);
+  await env.DB.prepare("DELETE FROM merkez_bilet WHERE zaman < ?").bind(sn - 86400).run();
+  try { await env.DB.prepare("INSERT INTO merkez_bilet (n, zaman) VALUES (?, ?)").bind(y.n, sn).run(); }
+  catch (e) { return { hata: "Bu bilet daha önce kullanıldı" }; }
+  return y;
+}
+// --- merkezBiletDogrula() sonu ---
+
+function htmlCevap(baslik, metin, durum) {
+  return new Response(`<!DOCTYPE html><html lang="tr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(baslik)}</title><body style="font-family:Arial,sans-serif;max-width:420px;margin:60px auto;padding:16px"><h2>${esc(baslik)}</h2><p>${esc(metin)}</p><p><a href="/panel">Panel girişine git</a></p></body></html>`, { status: durum || 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
+// Developer'ın Canlı İzleme ekranı için: kişiler ve durumları
+async function canliKisiler(env) {
+  const simdi = Date.now();
+  const { results: kisiler } = await env.DB.prepare("SELECT id, ad, kadi, rol, son_giris FROM panel_kullanici WHERE aktif=1 ORDER BY id").all();
+  const { results: otr } = await env.DB.prepare("SELECT kullanici_id, son_gorulme, cihaz, sekme, yol FROM panel_oturum WHERE kapandi=0 AND bitis > ? AND son_gorulme > ? ORDER BY son_gorulme DESC").bind(simdi, simdi - BOSTA_GUN * 86400000).all();
+  const liste = [...(kisiler || []), { id: 0, ad: "Acil giriş (ortak şifre)", kadi: "acil", rol: "gelistirici" }];
+  return liste.map((u) => {
+    const o = (otr || []).filter((x) => x.kullanici_id === u.id);
+    const son = o.length ? o[0].son_gorulme : 0;
+    const dk = son ? (simdi - son) / 60000 : 1e9;
+    return { id: u.id, ad: u.ad, kadi: u.kadi, rol: u.rol, son, durum: dk < 2 ? "yesil" : dk < 10 ? "sari" : "kirmizi", sekme: o.length ? o[0].sekme : "", cihaz: o.length ? o[0].cihaz : "", merkez: o.length ? o[0].yol === "merkez" : false, oturum_sayisi: o.length };
+  }).filter((u) => u.id !== 0 || u.son);
+}
+// =====================================================================
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -328,7 +477,7 @@ function raporYerHtml(bolumler, yer, pdfUrl) {
 const SAHLI_REHBER = `Sen "Şahlı AI"sın: buyukdunya.com yönetim panelinin yardımcısısın. Şahlı Harası'nın damızlık aygırı BÜYÜKDÜNYA'nın tanıtım sitesini yöneten kişilere (sahibi Güven Şahlı ve Serdar) panelin nasıl kullanılacağını anlatır, at ve rapor hakkındaki sorularını aşağıdaki bilgilere dayanarak cevaplarsın.
 KURALLAR: Her zaman Türkçe, kısa, net ve adım adım anlat ("Sol menüden X'e dokun, şunu yaz, Kaydet'e bas" gibi). Bilmediğin ya da aşağıda olmayan bilgiyi uydurma; "Bu bilgi bende yok" de. Panelde bir şeyi senin yerine değiştiremezsin, sadece nasıl yapılacağını anlatırsın. Teknik terim kullanma. Fiyat/aşım ücreti sorulursa sitede fiyat yazılmadığını, WhatsApp'tan konuşulduğunu söyle.
 
-PANEL KULLANIMI (adres: buyukdunya.com/panel, sadece şifre ile giriş):
+PANEL KULLANIMI (adres: buyukdunya.com/panel; herkes kendi kullanıcı adı + şifresiyle girer — Güven Şahlı: guven, Serdar: serdar; eski ortak şifre sadece acil durum girişidir, kullanıcı adı boş bırakılır. Şifre 👤 Hesabım'dan değiştirilir. Serdar Merkez Panel'den şifresiz de girebilir. 👀 Canlı İzle bölümünü sadece Serdar görür. Telefonun geri tuşu bir önceki bölüme döner, panelden çıkarmaz; çıkmak için üstteki Çıkış):
 Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 1) 🏆 Yarış: "Yarış Sayaçları" (Toplam Yarış, Birincilik, Grup Koşu Birinciliği, KV Birinciliği) sitenin üstündeki koyu şeritte görünen rakamlardır; değiştirip Kaydet'e basılır. "Yarış Geçmişi Ekle": Tarih, Hipodrom, Mesafe, Sonuç, Açıklama yazılıp Ekle'ye basılır; listede her kaydın Sil düğmesi vardır. Bir kayıt düzeltilecekse silinip doğrusu eklenir.
 2) 📝 Metinler: Ana sayfadaki büyük fotoğrafın üstündeki küçük üst yazı ve tanıtım cümlesi; Hakkında bölümünün kalın başlığı, künye kutusu (her satır ayrı satıra yazılır) ve uzun açıklama metni. Değiştirip Kaydet.
@@ -431,6 +580,26 @@ const PANEL_HTML = `<!DOCTYPE html>
   .ai-m { padding:9px 12px; border-radius:12px; margin:6px 0; max-width:88%; white-space:pre-wrap; line-height:1.5; font-size:14px; }
   .ai-m.sen { background:#47952a; color:#fff; margin-left:auto; }
   .ai-m.o { background:#fff; border:1px solid #e3e3e3; }
+  header h1 { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ust-kim { font-size:12px; white-space:nowrap; opacity:.95; }
+  .ust-cik { background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.4); padding:6px 10px; border-radius:6px; font-size:12px; text-decoration:none; white-space:nowrap; }
+  .destek { background:#fff3cd; color:#7a5a00; font-size:12px; padding:5px 12px; text-align:center; }
+  .side a.dev-yok { display:none; }
+  .kisi { display:flex; align-items:center; gap:10px; border:1px solid #eee; border-radius:8px; padding:10px; margin-bottom:8px; cursor:pointer; }
+  .kisi.sec { border-color:#47952a; background:#f4f8f1; }
+  .kisi .nokta { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+  .nokta.yesil { background:#2e9e44; box-shadow:0 0 0 3px #d6f0db; } .nokta.sari { background:#e0a800; } .nokta.kirmizi { background:#c9c9c9; }
+  .kisi small { color:#777; display:block; font-size:12px; }
+  .akis { max-height:55vh; overflow-y:auto; border:1px solid #eee; border-radius:8px; }
+  .akis div { padding:7px 10px; border-bottom:1px solid #f1f1f1; font-size:13px; line-height:1.4; }
+  .akis div.yeni { background:#fffbe6; }
+  .akis .zm { color:#888; font-size:12px; margin-right:6px; }
+  .akis .tr { display:inline-block; min-width:22px; }
+  .canli-ust { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .canli-ust button, .canli-ust input { margin-top:0; width:auto; }
+  #panel.destekli .layout { height:calc(100vh - 82px); }
+  @supports (height:100dvh) { #panel.destekli .layout { height:calc(100dvh - 82px); } }
+  @media (max-width:600px) { .ust-kim { display:none; } }
   @media (max-width:600px) { header h1 { font-size:16px; } .side { width:76px; } .side a { font-size:11px; padding:12px 2px; } .layout .wrap { padding:10px; } }
 </style>
 </head>
@@ -438,14 +607,18 @@ const PANEL_HTML = `<!DOCTYPE html>
 
 <div id="login-screen" class="card">
   <h2>Panel Girişi</h2>
+  <label>Kullanıcı adı</label>
+  <input type="text" id="login-kadi" autocomplete="username" autocapitalize="none" spellcheck="false">
   <label>Şifre</label>
-  <input type="password" id="login-password">
-  <button onclick="login()">Giriş Yap</button>
+  <input type="password" id="login-password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()" style="width:100%">Giriş Yap</button>
+  <div class="ipucu" style="margin-top:8px">Acil durumda kullanıcı adını boş bırakıp ortak şifreyle girilebilir.</div>
   <div id="login-msg"></div>
 </div>
 
 <div id="panel" class="hidden">
-  <header><h1>Büyükdünya - Yönetim Paneli</h1></header>
+  <header><h1>Büyükdünya - Yönetim Paneli</h1><span class="ust-kim" id="ust-kim"></span><a class="ust-cik" href="/panel/logout">Çıkış</a></header>
+  <div class="destek hidden" id="destek-serit">🛟 Seray Tekno Destek — Merkez'den girildi</div>
   <div class="layout">
   <nav class="side" id="side">
     <a data-sec="yaris" onclick="showSec('yaris')"><span class="mi">🏆</span>Yarış</a>
@@ -457,6 +630,8 @@ const PANEL_HTML = `<!DOCTYPE html>
     <a data-sec="rapor" onclick="showSec('rapor')"><span class="mi">📑</span>Rapor</a>
     <a data-sec="talep" onclick="showSec('talep')"><span class="mi">📩</span>Talepler</a>
     <a data-sec="ai" onclick="showSec('ai')"><span class="mi">🤖</span>Şahlı AI</a>
+    <a data-sec="canli" onclick="showSec('canli')" class="dev-yok" id="nav-canli"><span class="mi">👀</span>Canlı İzle</a>
+    <a data-sec="hesap" onclick="showSec('hesap')"><span class="mi">👤</span>Hesabım</a>
     <a href="/" target="_blank"><span class="mi">🌐</span>Siteyi Aç</a>
   </nav>
   <div class="wrap">
@@ -662,6 +837,33 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="rapor-pdf-msg"></div>
     </div>
 
+    <div class="card" data-sec="canli">
+      <h2>👀 Kimler panelde?</h2>
+      <div class="ipucu">🟢 şu an açık (son 2 dk) · 🟡 son 10 dk · ⚪ çevrimdışı. Bir kişiye dokununca sadece onun hareketleri gelir.</div>
+      <div id="canli-kisiler"></div>
+    </div>
+    <div class="card" data-sec="canli">
+      <h2 id="canli-baslik">🔴 Canlı akış — herkes</h2>
+      <div class="canli-ust">
+        <button class="secondary" onclick="canliKisiSec(null)">Herkes</button>
+        <input type="date" id="canli-gun" onchange="canliGunSec()" style="max-width:170px">
+        <button class="secondary" onclick="canliBugun()">Canlıya dön</button>
+      </div>
+      <div class="ipucu" id="canli-durum"></div>
+      <div class="akis" id="canli-akis"></div>
+    </div>
+
+    <div class="card" data-sec="hesap">
+      <h2>👤 Hesabım</h2>
+      <div id="hesap-bilgi" class="ipucu"></div>
+      <div id="hesap-sifre-kutu">
+        <label>Eski şifre</label><input type="password" id="h-eski" autocomplete="current-password">
+        <label>Yeni şifre (en az 6 karakter)</label><input type="password" id="h-yeni" autocomplete="new-password">
+        <button onclick="sifreDegistir()">Şifremi Değiştir</button>
+        <div id="hesap-msg"></div>
+      </div>
+    </div>
+
     <div class="card" data-sec="ai">
       <h2>🤖 Şahlı AI</h2>
       <div class="ipucu">Panelin kullanımını, raporu ve Büyükdünya ile ilgili bilgileri sorabilirsin. Örn: "Galeriye nasıl fotoğraf eklerim?"</div>
@@ -695,11 +897,14 @@ document.addEventListener("click", function (e) {
   document.getElementById("lb-img").src = t.currentSrc || t.src;
   document.getElementById("lb").classList.add("acik");
 });
-function showSec(sec) {
+function showSec(sec, gecmistenMi) {
+  if (!gecmistenMi && sec !== SEKME && BEN) { try { history.pushState({ bd: 1, sec: sec }, "", "#" + sec); } catch (e) {} }
   document.querySelectorAll(".card[data-sec]").forEach(function (c) { c.classList.toggle("hide", c.dataset.sec !== sec); });
   document.querySelectorAll(".side a[data-sec]").forEach(function (a) { a.classList.toggle("active", a.dataset.sec === sec); });
   const w = document.querySelector(".layout .wrap"); if (w) w.scrollTop = 0;
   try { localStorage.setItem("panelSec", sec); } catch (e) {}
+  SEKME = sec; nabiz();
+  if (sec === "canli") canliBaslat(); else canliDurdur();
 }
 
 function showMsg(id, text, ok) {
@@ -711,13 +916,14 @@ function showMsg(id, text, ok) {
 
 async function login() {
   const password = document.getElementById("login-password").value;
-  const r = await fetch("/panel/login", { method: "POST", body: JSON.stringify({ password }), headers: { "Content-Type": "application/json" } });
+  const kadi = document.getElementById("login-kadi").value.trim();
+  const govde = kadi ? { kadi: kadi, sifre: password } : { password: password };
+  const r = await fetch("/panel/login", { method: "POST", body: JSON.stringify(govde), headers: { "Content-Type": "application/json" } });
   if (r.ok) {
-    document.getElementById("login-screen").classList.add("hidden");
-    document.getElementById("panel").classList.remove("hidden");
-    loadAll();
+    if (await panelAc()) korumaKur();
   } else {
-    showMsg("login-msg", "Şifre hatalı", false);
+    let m = "Şifre hatalı"; try { m = (await r.json()).error || m; } catch (e) {}
+    showMsg("login-msg", m, false);
   }
 }
 
@@ -1243,41 +1449,175 @@ async function deleteTalep(id) {
 }
 
 // Oturum zaten açıksa doğrudan paneli göster
-(async () => {
-  const r = await fetch("/api/profile");
-  if (r.ok) {
-    document.getElementById("login-screen").classList.add("hidden");
-    document.getElementById("panel").classList.remove("hidden");
-    loadAll();
+// ===== 14.11.2026: kişiye özel giriş, nabız, dokunuş kaydı, Canlı İzleme =====
+let BEN = null, SEKME = "", TIK_KUYRUK = [], CANLI_ZAMAN = null, CANLI_KID = null, CANLI_SON = 0, CANLI_GUN = "";
+const SEKME_AD = { yaris: "Yarış", metin: "Metinler", ayar: "Site Ayarları", haber: "Haberler", galeri: "Galeri", kisrak: "Kısraklar", rapor: "Rapor", talep: "Talepler", ai: "Şahlı AI", canli: "Canlı İzle", hesap: "Hesabım" };
+// Her panel isteğine hangi bölümde olunduğunu ekle (işlem kaydında görünür)
+const _ilkFetch = window.fetch.bind(window);
+window.fetch = function (adres, ayar) {
+  try {
+    if (typeof adres === "string" && adres.indexOf("/api/") === 0) {
+      ayar = ayar || {}; const h = new Headers(ayar.headers || {}); h.set("x-panel-sekme", SEKME || ""); ayar.headers = h;
+    }
+  } catch (e) {}
+  return _ilkFetch(adres, ayar);
+};
+async function panelAc() {
+  const r = await fetch("/api/ben");
+  if (!r.ok) return false;
+  BEN = await r.json();
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("panel").classList.remove("hidden");
+  document.getElementById("ust-kim").textContent = "👤 " + (BEN.ad || BEN.kadi);
+  document.getElementById("destek-serit").classList.toggle("hidden", BEN.yol !== "merkez");
+  document.getElementById("panel").classList.toggle("destekli", BEN.yol === "merkez");
+  document.getElementById("nav-canli").classList.toggle("dev-yok", !BEN.dev);
+  document.getElementById("hesap-bilgi").textContent = "Giriş yapan: " + (BEN.ad || "") + (BEN.kadi ? " (" + BEN.kadi + ")" : "") + (BEN.dev ? " · Developer" : " · Yönetici");
+  document.getElementById("hesap-sifre-kutu").classList.toggle("hidden", !(BEN.id > 0));
+  loadAll();
+  return true;
+}
+function nabiz() { if (BEN) fetch("/api/nabiz", { method: "POST", body: JSON.stringify({ sekme: SEKME }) }).catch(function () {}); }
+setInterval(function () { if (!document.hidden) nabiz(); }, 60000);
+document.addEventListener("visibilitychange", function () { if (!document.hidden) nabiz(); });
+// Dokunuş kaydı: sadece düğme / bağlantı yazısı (yazılan metin, şifre ASLA)
+document.addEventListener("click", function (e) {
+  if (!BEN) return;
+  const el = e.target.closest("button, a, .kisi, img");
+  if (!el || el.closest("#canli-akis") || el.closest(".side")) return; // menü dokunuşu zaten "ekranını açtı" olarak yazılır
+  let t = el.tagName === "IMG" ? "🖼 resme dokundu" : (el.innerText || el.getAttribute("title") || "").replace(/\s+/g, " ").trim();
+  if (!t) return;
+  TIK_KUYRUK.push({ z: Date.now(), s: SEKME, t: t.slice(0, 80) });
+}, true);
+setInterval(function () {
+  if (!TIK_KUYRUK.length) return;
+  const l = TIK_KUYRUK.splice(0, 30);
+  fetch("/api/tik", { method: "POST", body: JSON.stringify({ liste: l }) }).catch(function () {});
+}, 1200);
+
+function saatYaz(ms) { const d = new Date(ms); return d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Istanbul" }); }
+function gunYaz(ms) { return new Date(ms).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Istanbul" }); }
+function ne(h) {
+  if (h.tur === "ekran") return ["📄", "<b>" + esc(SEKME_AD[h.sekme] || h.sekme) + "</b> ekranını açtı"];
+  if (h.tur === "tik") return ["👆", "dokundu: " + esc(h.detay) + (h.sekme ? " <small style='color:#999'>(" + esc(SEKME_AD[h.sekme] || h.sekme) + ")</small>" : "")];
+  if (h.tur === "islem") return ["✅", "<b>" + esc(h.detay) + "</b>"];
+  if (h.tur === "giris") return ["🔑", esc(h.detay)];
+  if (h.tur === "cikis") return ["🚪", esc(h.detay)];
+  return ["•", esc(h.detay)];
+}
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+function canliBaslat() { canliDurdur(); CANLI_SON = 0; canliYukle(); CANLI_ZAMAN = setInterval(function () { if (!document.hidden && !CANLI_GUN) canliYukle(); }, 3000); }
+function canliDurdur() { if (CANLI_ZAMAN) clearInterval(CANLI_ZAMAN); CANLI_ZAMAN = null; }
+function canliKisiSec(kid) { CANLI_KID = kid; CANLI_SON = 0; document.getElementById("canli-akis").innerHTML = ""; canliYukle(); }
+function canliGunSec() { CANLI_GUN = document.getElementById("canli-gun").value; CANLI_SON = 0; document.getElementById("canli-akis").innerHTML = ""; canliYukle(); }
+function canliBugun() { CANLI_GUN = ""; document.getElementById("canli-gun").value = ""; CANLI_SON = 0; document.getElementById("canli-akis").innerHTML = ""; canliYukle(); }
+async function canliYukle() {
+  let q = "/api/canli?son=" + (CANLI_GUN ? 0 : CANLI_SON);
+  if (CANLI_KID !== null) q += "&kid=" + CANLI_KID;
+  if (CANLI_GUN) q += "&gun=" + CANLI_GUN;
+  const r = await fetch(q); if (!r.ok) return;
+  const d = await r.json();
+  // Kişiler
+  const simdi = d.simdi;
+  document.getElementById("canli-kisiler").innerHTML = d.kisiler.map(function (k) {
+    const once = k.son ? Math.round((simdi - k.son) / 60000) : null;
+    const zaman = once === null ? "hiç girmedi" : once < 1 ? "şu an" : once < 60 ? once + " dk önce" : once < 1440 ? Math.round(once / 60) + " saat önce" : gunYaz(k.son);
+    const nerede = k.durum !== "kirmizi" && k.sekme ? " · " + (SEKME_AD[k.sekme] || k.sekme) : "";
+    return "<div class='kisi" + (CANLI_KID === k.id ? " sec" : "") + "' onclick='canliKisiSec(" + k.id + ")'><span class='nokta " + k.durum + "'></span><div style='flex:1'><b>" + esc(k.ad || k.kadi) + "</b>" + (k.merkez ? " 🛟" : "") + "<small>" + zaman + nerede + (k.cihaz ? " · " + esc(k.cihaz) : "") + "</small></div></div>";
+  }).join("");
+  const kisi = d.kisiler.find(function (k) { return k.id === CANLI_KID; });
+  document.getElementById("canli-baslik").textContent = (CANLI_GUN ? "📼 Geçmiş — " : "🔴 Canlı akış — ") + (kisi ? (kisi.ad || kisi.kadi) : "herkes");
+  document.getElementById("canli-durum").textContent = CANLI_GUN ? (CANLI_GUN + " günü, en yeni üstte") : "3 saniyede bir yenilenir · son: " + saatYaz(simdi);
+  // Akış
+  const kutu = document.getElementById("canli-akis");
+  const satir = function (h, yeni) { const n = ne(h); return "<div" + (yeni ? " class='yeni'" : "") + "><span class='zm'>" + (CANLI_GUN ? "" : (gunYaz(h.zaman) + " ")) + saatYaz(h.zaman) + "</span><span class='tr'>" + n[0] + "</span>" + (CANLI_KID === null ? "<b>" + esc(h.ad || "?") + "</b> · " : "") + n[1] + "</div>"; };
+  if (CANLI_GUN || !CANLI_SON) kutu.innerHTML = d.akis.length ? d.akis.map(function (h) { return satir(h, false); }).join("") : "<div style='color:#888'>Kayıt yok.</div>";
+  else if (d.akis.length) kutu.insertAdjacentHTML("afterbegin", d.akis.map(function (h) { return satir(h, true); }).join(""));
+  if (d.akis.length && !CANLI_GUN) CANLI_SON = Math.max(CANLI_SON, d.akis[0].id);
+}
+async function sifreDegistir() {
+  const r = await fetch("/api/sifre", { method: "POST", body: JSON.stringify({ eski: document.getElementById("h-eski").value, yeni: document.getElementById("h-yeni").value }) });
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  showMsg("hesap-msg", r.ok ? "Şifre değişti (diğer cihazlardaki oturumlar kapandı)" : (d.error || "Olmadı"), r.ok);
+  if (r.ok) { document.getElementById("h-eski").value = ""; document.getElementById("h-yeni").value = ""; }
+}
+
+// ===== Geri tuşu (14.11.2026, Serdar: "geri tuşuna basınca panelden çıkıyor") =====
+// Her bölüm geçişi tarayıcı geçmişine yazılır. Geri → önce açık büyük resim kapanır, sonra önceki bölüm.
+// En başta panelden çıkılmaz (koruma kaydı); çıkmak için üstteki Çıkış düğmesi.
+let KOK_KORUMA_GEREK = true;
+function korumaKur() { try { history.replaceState({ bd: 1, kok: 1 }, "", location.pathname); history.pushState({ bd: 1, sec: SEKME }, "", "#" + SEKME); } catch (e) {} KOK_KORUMA_GEREK = false; }
+document.addEventListener("click", function () { if (BEN && KOK_KORUMA_GEREK) korumaKur(); }, true);
+window.addEventListener("popstate", function (e) {
+  if (!BEN) return;
+  const lb = document.getElementById("lb");
+  if (lb && lb.classList.contains("acik")) { lb.classList.remove("acik"); try { history.pushState({ bd: 1, sec: SEKME }, "", "#" + SEKME); } catch (x) {} return; }
+  const st = e.state || {};
+  if (st.kok || !st.sec) {
+    try { history.pushState({ bd: 1, sec: SEKME }, "", "#" + SEKME); } catch (x) {}
+    const t = document.createElement("div"); t.textContent = "Panelden çıkmak için üstteki Çıkış düğmesini kullanın";
+    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:4000";
+    document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2500);
+    return;
   }
-})();
+  showSec(st.sec, true);
+});
+window.addEventListener("beforeunload", function (e) { if (BEN && !CIKIYOR) { e.preventDefault(); e.returnValue = ""; } });
+let CIKIYOR = false;
+document.addEventListener("click", function (e) { const a = e.target.closest("a.ust-cik"); if (a) CIKIYOR = true; }, true);
+
+// Oturum zaten açıksa doğrudan paneli göster
+panelAc().then(function (ok) { if (ok) korumaKur(); });
 </script>
 </body>
 </html>`;
 
-export default {
+const ANA_ISLEYICI = {
   async fetch(request, env) {
     const url = new URL(request.url);
     let path = url.pathname;
 
-    // --- Panel login/logout ---
+    // --- Panel giriş / çıkış (14.11.2026: kişiye özel; ortak şifre = acil durum) ---
     if (path === "/panel/login" && request.method === "POST") {
-      const { password } = await request.json();
-      if (password === env.PANEL_PASSWORD) {
-        const token = await signToken(env.PANEL_PASSWORD);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: {
-            "Content-Type": "application/json",
-            "Set-Cookie": `session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`,
-          },
-        });
+      await semaHazirla(env);
+      let g = {}; try { g = await request.json(); } catch (e) {}
+      const ip = request.headers.get("cf-connecting-ip") || "-";
+      const kadi = String(g.kadi || "").trim().toLowerCase();
+      const simdi = Date.now();
+      const kilitler = ["ip:" + ip].concat(kadi ? ["k:" + kadi] : []);
+      for (const a of kilitler) {
+        const r = await env.DB.prepare("SELECT sayi, bitis FROM giris_kilidi WHERE anahtar=?").bind(a).first();
+        if (r && r.bitis > simdi && r.sayi >= (a.startsWith("ip:") ? 5 : 10)) return json({ error: "Çok fazla yanlış deneme. 15 dakika sonra yeniden deneyin." }, 429);
       }
-      return json({ error: "Şifre hatalı" }, 401);
+      let kid = null;
+      if (kadi) {
+        const u = await env.DB.prepare("SELECT id, sifre FROM panel_kullanici WHERE kadi=? COLLATE NOCASE AND aktif=1").bind(kadi).first();
+        if (u && await sifreDogrula(String(g.sifre || ""), u.sifre)) kid = u.id;
+      } else if (g.password && env.PANEL_PASSWORD && bdEsit(String(g.password), env.PANEL_PASSWORD)) kid = 0;
+      if (kid === null) {
+        for (const a of kilitler) await env.DB.prepare("INSERT INTO giris_kilidi (anahtar, sayi, bitis) VALUES (?, 1, ?) ON CONFLICT(anahtar) DO UPDATE SET sayi = CASE WHEN bitis < ? THEN 1 ELSE sayi + 1 END, bitis = ?").bind(a, simdi + 900000, simdi, simdi + 900000).run();
+        return json({ error: kadi ? "Kullanıcı adı veya şifre hatalı" : "Şifre hatalı" }, 401);
+      }
+      for (const a of kilitler) await env.DB.prepare("DELETE FROM giris_kilidi WHERE anahtar=?").bind(a).run();
+      const cerez = await oturumAc(env, request, kid, kid === 0 ? "acil" : "sifre");
+      const k = kid === 0 ? { id: 0 } : { id: kid };
+      k.oturum = (await sha256Hex(cerez.split(";")[0].slice(7))); await hareketYaz(env, k, "giris", "", kid === 0 ? "Acil şifreyle giriş" : "Giriş yaptı");
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", "Set-Cookie": cerez } });
+    }
+    if (path === "/merkez-giris" && request.method === "GET") {
+      const y = await merkezBiletDogrula(env, url.searchParams.get("b"));
+      if (y.hata) return htmlCevap("Merkez girişi olmadı", y.hata, 403);
+      const u = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE rol='gelistirici' AND aktif=1 ORDER BY (kadi='serdar') DESC, id LIMIT 1").first();
+      const cerez = await oturumAc(env, request, u ? u.id : 0, "merkez");
+      await hareketYaz(env, { id: u ? u.id : 0, oturum: await sha256Hex(cerez.split(";")[0].slice(7)) }, "giris", "", "Merkez'den giriş");
+      return new Response(null, { status: 302, headers: { Location: "/panel", "Set-Cookie": cerez, "Cache-Control": "no-store" } });
     }
     if (path === "/panel/logout") {
+      const k = await kimlikAl(request, env);
+      if (k) { await hareketYaz(env, k, "cikis", "", "Çıkış yaptı"); await env.DB.prepare("UPDATE panel_oturum SET kapandi=1 WHERE ozet=?").bind(k.oturum).run(); }
       return new Response(null, {
         status: 302,
-        headers: { Location: "/panel", "Set-Cookie": "session=; Path=/; Max-Age=0" },
+        headers: { Location: "/panel", "Set-Cookie": "oturum=; Path=/; Max-Age=0" },
       });
     }
     if (path === "/panel") {
@@ -1287,6 +1627,49 @@ export default {
     // --- API ---
     if (path.startsWith("/api/")) {
       const authed = await requireAuth(request, env);
+
+      // --- 14.11.2026: kimlik, nabız, dokunuş, canlı izleme, kendi şifresi ---
+      if (path === "/api/ben" && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        return json({ id: authed.id, ad: authed.ad, kadi: authed.kadi, rol: authed.rol, dev: authed.dev, yol: authed.yol });
+      }
+      if (path === "/api/nabiz" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        let g = {}; try { g = await request.json(); } catch (e) {}
+        const sekme = String(g.sekme || "").slice(0, 30);
+        await env.DB.prepare("UPDATE panel_oturum SET son_gorulme=?, sekme=? WHERE ozet=?").bind(Date.now(), sekme, authed.oturum).run();
+        if (sekme && sekme !== authed.sekme) await hareketYaz(env, authed, "ekran", sekme, "");
+        return json({ ok: true });
+      }
+      if (path === "/api/tik" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        let g = {}; try { g = await request.json(); } catch (e) {}
+        const l = Array.isArray(g.liste) ? g.liste.slice(0, 30) : [];
+        if (l.length) await env.DB.batch(l.map((t) => env.DB.prepare("INSERT INTO panel_hareket (zaman, kullanici_id, oturum, tur, sekme, detay) VALUES (?,?,?,?,?,?)")
+          .bind(Math.min(Date.now(), Number(t.z) || Date.now()), authed.id, (authed.oturum || "").slice(0, 12), "tik", String(t.s || "").slice(0, 30), String(t.t || "").slice(0, 80))));
+        return json({ ok: true });
+      }
+      if (path === "/api/canli" && request.method === "GET") {
+        if (!authed || !authed.dev) return json({ error: "unauthorized" }, 401);
+        const kid = url.searchParams.get("kid"), son = Number(url.searchParams.get("son")) || 0, gun = url.searchParams.get("gun") || "";
+        let w = " WHERE h.id > ?", b = [son];
+        if (kid !== null && kid !== "") { w += " AND h.kullanici_id = ?"; b.push(Number(kid)); }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(gun)) { const bas = Date.parse(gun + "T00:00:00+03:00"); w += " AND h.zaman >= ? AND h.zaman < ?"; b.push(bas, bas + 86400000); }
+        const { results } = await env.DB.prepare("SELECT h.*, COALESCE(u.ad, CASE WHEN h.kullanici_id=0 THEN 'Acil giriş' END) AS ad FROM panel_hareket h LEFT JOIN panel_kullanici u ON u.id = h.kullanici_id" + w + " ORDER BY h.id DESC LIMIT " + (son ? 200 : 300)).bind(...b).all();
+        return json({ kisiler: await canliKisiler(env), akis: results || [], simdi: Date.now() });
+      }
+      if (path === "/api/sifre" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        if (!(authed.id > 0)) return json({ error: "Acil girişte şifre değiştirilmez" }, 400);
+        let g = {}; try { g = await request.json(); } catch (e) {}
+        const yeni = String(g.yeni || "");
+        if (yeni.length < 6) return json({ error: "Yeni şifre en az 6 karakter olmalı" }, 400);
+        const u = await env.DB.prepare("SELECT sifre FROM panel_kullanici WHERE id=?").bind(authed.id).first();
+        if (!u || !(await sifreDogrula(String(g.eski || ""), u.sifre))) return json({ error: "Eski şifre hatalı" }, 400);
+        await env.DB.prepare("UPDATE panel_kullanici SET sifre=? WHERE id=?").bind(await sifreOzetle(yeni), authed.id).run();
+        await env.DB.prepare("UPDATE panel_oturum SET kapandi=1 WHERE kullanici_id=? AND ozet<>?").bind(authed.id, authed.oturum).run();
+        return json({ ok: true });
+      }
 
       if (path === "/api/profile" && request.method === "GET") {
         if (!authed) return json({ error: "unauthorized" }, 401);
@@ -1534,5 +1917,26 @@ export default {
     if (path === "/" || path === "") path = "/index.html";
     if (path === "/index.html") return servePublicPage(path, env);
     return serveStaticAsset(path);
+  },
+};
+
+// 14.11.2026 — Sarmalayıcı: panelden yapılan başarılı her yazma isteği "işlem" olarak kaydedilir (Canlı İzleme).
+// Gövde/şifre/dosya içeriği YAZILMAZ; sadece ne yapıldığı (ör. "Haber kaydedildi").
+const ISLEM_DISI = new Set(["/api/nabiz", "/api/tik", "/api/rapor-onizle", "/api/talep-gonder", "/api/wa-click"]);
+export default {
+  async fetch(request, env, ctx) {
+    const cevap = await ANA_ISLEYICI.fetch(request, env, ctx);
+    try {
+      const u = new URL(request.url);
+      if (u.pathname.startsWith("/api/") && request.method !== "GET" && cevap.status < 400 && !ISLEM_DISI.has(u.pathname)) {
+        const k = ISTEK_KIMLIK.get(request);
+        if (k) {
+          const sekme = (request.headers.get("x-panel-sekme") || "").slice(0, 30);
+          const is = hareketYaz(env, k, "islem", sekme, islemAdi(request.method, u.pathname));
+          if (ctx && ctx.waitUntil) ctx.waitUntil(is); else await is;
+        }
+      }
+    } catch (e) {}
+    return cevap;
   },
 };
