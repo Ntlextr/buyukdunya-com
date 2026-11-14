@@ -2,7 +2,7 @@
 
 Güven Şahlı'nın bütün işletmeleri tek panelde: Luxury Beauty Center, Şahlı Harası – BÜYÜKDÜNYA, Şahlı Otomotiv (şimdilik sadece ad, "Yakında").
 
-- **Adres:** https://sahli-grup-panel.serdarcirak.workers.dev — sahliotomotiv.com Cloudflare'e geçince `merkez.sahliotomotiv.com` özel alan adı bağlanır (Merkez'deki `firma.alan_adi` da güncellenir).
+- **Adres:** https://grup.buyukdunya.com (15.11.2026, Serdar seçti; yedek: sahli-grup-panel.serdarcirak.workers.dev). sahliotomotiv.com Cloudflare'e geçince ayrıca `merkez.sahliotomotiv.com` eklenebilir (Merkez `firma.alan_adi` da güncellenir).
 - **Worker:** `sahli-grup-panel` (elle yayın; Workers Builds YOK). Dosyalar: `worker.js` (sunucu), `panel.js` (arayüz), `ikonlar.js` (ana ekran simgeleri). Yayın için üçü tek dosyada birleştirilir (importlar silinir, `export const` → `const`), buyukdunya R2 aktarımıyla Cloudflare'e PUT edilir.
 - **Bağlantılar:** `DB` = D1 `sahli-grup-db` (a5815cc6-fab2-4a29-bc23-55a8e8be4de4), `LUX_DB` = Luxury D1 (SADECE OKUNUR sorgular), `BD_DB` = Büyükdünya D1 (SADECE OKUNUR).
 - **Secret'lar:** `MERKEZ_ANAHTAR` (Merkez → bu panel; değeri Merkez D1 `firma` kod `sahli`), `LUX_SAHLI_ANAHTAR` (= luxurybeauty-js `SAHLI_ANAHTAR`), `BD_SAHLI_ANAHTAR` (= buyukdunya-com `SAHLI_ANAHTAR`). Değerler koda/notlara YAZILMAZ.
