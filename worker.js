@@ -409,6 +409,9 @@ async function servePublicPage(path, env) {
   html = html.replace(/<!--HAKKINDA_KUNYE_START-->[\s\S]*?<!--HAKKINDA_KUNYE_END-->/, esc(icerik.hakkinda_kunye || "").replace(/\n/g, "<br>"));
   html = html.replace(/<!--HAKKINDA_METIN_START-->[\s\S]*?<!--HAKKINDA_METIN_END-->/, esc(icerik.hakkinda_metin || ""));
   html = html.replace(/<!--RAPOR:([a-z]+)-->/g, (m, yer) => raporYerHtml(raporB, yer, icerik.rapor_pdf || ""));
+  html = html.replace("<!--HERO_VIDEO-->", icerik.hero_video
+    ? `<video class="hero-video" id="heroVideo" src="${esc(icerik.hero_video)}"${icerik.hero_video_poster ? ` poster="${esc(icerik.hero_video_poster)}"` : ""} autoplay muted loop playsinline preload="auto" data-ses="${icerik.hero_video_ses === "0" ? "0" : "1"}"></video><button type="button" class="ses-dugme" id="sesDugme">🔇 Sesi aç</button>`
+    : "");
   html = html.replace("<!--PEDIGREE_IMG-->", icerik.pedigree_img ? `<img src="${esc(icerik.pedigree_img)}" alt="Büyükdünya Pedigree" style="margin-bottom:28px">` : "");
   html = html.replace(/<!--LOGO_START-->[\s\S]*?<!--LOGO_END-->/, icerik.logo_img ? `<img src="${esc(icerik.logo_img)}" alt="Büyükdünya">` : "");
 
@@ -559,7 +562,7 @@ function raporYerHtml(bolumler, yer, pdfUrl) {
 const SAHLI_REHBER = `Sen "Şahlı AI"sın: buyukdunya.com yönetim panelinin yardımcısısın. Şahlı Harası'nın damızlık aygırı BÜYÜKDÜNYA'nın tanıtım sitesini yöneten kişilere (sahibi Güven Şahlı ve Serdar) panelin nasıl kullanılacağını anlatır, at ve rapor hakkındaki sorularını aşağıdaki bilgilere dayanarak cevaplarsın.
 KURALLAR: Her zaman Türkçe, kısa, net ve adım adım anlat ("Sol menüden X'e dokun, şunu yaz, Kaydet'e bas" gibi). Bilmediğin ya da aşağıda olmayan bilgiyi uydurma; "Bu bilgi bende yok" de. Panelde bir şeyi senin yerine değiştiremezsin, sadece nasıl yapılacağını anlatırsın. Teknik terim kullanma. Fiyat/aşım ücreti sorulursa sitede fiyat yazılmadığını, WhatsApp'tan konuşulduğunu söyle.
 
-PANEL KULLANIMI (adres: buyukdunya.com/panel; herkes kendi kullanıcı adı + şifresiyle girer — Güven Şahlı: guven, Serdar: serdar; eski ortak şifre sadece acil durum girişidir, kullanıcı adı boş bırakılır. Şifre 👤 Hesabım'dan değiştirilir. Serdar Merkez Panel'den şifresiz de girebilir. 👀 Canlı İzle bölümünü sadece Serdar görür. Telefonun geri tuşu bir önceki bölüme döner, panelden çıkarmaz; çıkmak için üstteki Çıkış. Telefonun ana ekranına logolu uygulama gibi eklenir — iPhone: Safari'de panel açıkken alttaki Paylaş → Ana Ekrana Ekle; Android: Chrome ⋮ → Ana ekrana ekle; ilk açılışta bir kez giriş yapılır; anlatım 👤 Hesabım'da da var. Galeride her resmin altında 🎯 Odağı ayarla var: resim sitede kırpılırken dokunulan yer ortada görünür; yeni yüklenen fotoğraflarda atın yerini yapay zekâ kendisi bulur):
+PANEL KULLANIMI (adres: buyukdunya.com/panel; herkes kendi kullanıcı adı + şifresiyle girer — Güven Şahlı: guven, Serdar: serdar; eski ortak şifre sadece acil durum girişidir, kullanıcı adı boş bırakılır. Şifre 👤 Hesabım'dan değiştirilir. Serdar Merkez Panel'den şifresiz de girebilir. 👀 Canlı İzle bölümünü sadece Serdar görür. Telefonun geri tuşu bir önceki bölüme döner, panelden çıkarmaz; çıkmak için üstteki Çıkış. Telefonun ana ekranına logolu uygulama gibi eklenir — iPhone: Safari'de panel açıkken alttaki Paylaş → Ana Ekrana Ekle; Android: Chrome ⋮ → Ana ekrana ekle; ilk açılışta bir kez giriş yapılır; anlatım 👤 Hesabım'da da var. Sitenin açılışında arka planda tanıtım videosu oynar: Site Ayarları › 🎬 Açılış videosu'ndan değiştirilir/kaldırılır; tarayıcılar sesli açılışa izin vermediği için ses ziyaretçinin ilk dokunuşunda açılır, sağ alttaki 🔊 düğmesiyle kapatılır. Galeride her resmin altında 🎯 Odağı ayarla var: resim sitede kırpılırken dokunulan yer ortada görünür; yeni yüklenen fotoğraflarda atın yerini yapay zekâ kendisi bulur):
 Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 1) 🏆 Yarış: "Yarış Sayaçları" (Toplam Yarış, Birincilik, Grup Koşu Birinciliği, KV Birinciliği) sitenin üstündeki koyu şeritte görünen rakamlardır; değiştirip Kaydet'e basılır. "Yarış Geçmişi Ekle": Tarih, Hipodrom, Mesafe, Sonuç, Açıklama yazılıp Ekle'ye basılır; listede her kaydın Sil düğmesi vardır. Bir kayıt düzeltilecekse silinip doğrusu eklenir.
 2) 📝 Metinler: Ana sayfadaki büyük fotoğrafın üstündeki küçük üst yazı ve tanıtım cümlesi; Hakkında bölümünün kalın başlığı, künye kutusu (her satır ayrı satıra yazılır) ve uzun açıklama metni. Değiştirip Kaydet.
@@ -795,6 +798,13 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="sa-logo-prev"></div>
       <input type="file" id="sa-logo-dosya" accept="image/*">
       <button type="button" class="secondary" onclick="clearLogo()">Logoyu Kaldır</button>
+
+      <label>🎬 Açılış videosu (sitenin en üstünde arka planda oynar)</label>
+      <div id="sa-video-prev" class="ipucu"></div>
+      <input type="file" id="sa-video-dosya" accept="video/mp4">
+      <div class="ipucu">MP4, en çok 25 MB önerilir (büyük video telefonda geç açılır). Boş bırakırsan mevcut video kalır.</div>
+      <label style="font-weight:normal"><input type="checkbox" id="sa-video-ses" style="width:auto"> Ziyaretçi sayfaya ilk dokunduğunda ses açılsın (tarayıcılar sitenin sesli açılmasına izin vermez; ziyaretçi 🔊 ile kapatabilir)</label>
+      <button type="button" class="secondary" onclick="videoKaldir()">Videoyu Kaldır</button>
 
       <label>"Pistten Kanıt" bölümü fotoğrafı</label>
       <div id="sa-perf-prev"></div>
@@ -1090,6 +1100,8 @@ async function loadSiteAyarlar() {
     const el = document.getElementById(id);
     el.innerHTML = url ? '<img src="' + absUrl(url) + '" style="max-width:100%; max-height:100px; display:block; margin-bottom:6px; border-radius:6px;">' : '';
   }
+  document.getElementById("sa-video-prev").innerHTML = d.hero_video ? '<video src="' + absUrl(d.hero_video) + '" muted controls playsinline style="max-width:100%;max-height:160px;border-radius:6px"></video>' : "Video yok — açılışta fotoğraflar sırayla gösterilir.";
+  document.getElementById("sa-video-ses").checked = d.hero_video_ses !== "0";
   window._heroPos = {};
   for (let n = 1; n <= 5; n++) {
     const url = d["hero_slide" + n];
@@ -1116,6 +1128,13 @@ function odakNokta(n) {
   if (p[0] === "center") p = ["50%", "50%"];
   kap.querySelector("i").style.left = p[0];
   kap.querySelector("i").style.top = p[1] || "50%";
+}
+
+async function videoKaldir() {
+  if (!confirm("Açılış videosu kaldırılsın mı? Yerine fotoğraflar gösterilir.")) return;
+  const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify({ hero_video: "", hero_video_poster: "" }), headers: { "Content-Type": "application/json" } });
+  showMsg("site-ayarlar-msg", r.ok ? "Video kaldırıldı" : "Hata oluştu", r.ok);
+  if (r.ok) loadSiteAyarlar();
 }
 
 async function clearLogo() {
@@ -1158,6 +1177,14 @@ async function saveSiteAyarlar() {
       else if (window._heroPos && window._heroPos[n]) body["hero_pos" + n] = window._heroPos[n];
     }
     if (document.getElementById("sa-perf-dosya").files[0]) body.perf_pos = "oto";
+    const vd = document.getElementById("sa-video-dosya").files[0];
+    if (vd) {
+      if (vd.size > 60 * 1024 * 1024) throw new Error("Video çok büyük (en çok 60 MB)");
+      showMsg("site-ayarlar-msg", "Video yükleniyor…", true);
+      body.hero_video = await uploadFile(vd);
+      body.hero_video_poster = "";
+    }
+    body.hero_video_ses = document.getElementById("sa-video-ses").checked ? "1" : "0";
     const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
     showMsg("site-ayarlar-msg", r.ok ? "Kaydedildi" : "Hata oluştu", r.ok);
     if (r.ok) loadSiteAyarlar();
@@ -1977,6 +2004,7 @@ const ANA_ISLEYICI = {
           "logo_img", "pedigree_img", "iletisim_img",
           "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
           "hero_pos1", "hero_pos2", "hero_pos3", "hero_pos4", "hero_pos5", "perf_img", "perf_pos", "rapor_pdf",
+          "hero_video", "hero_video_poster", "hero_video_ses",
         ]) {
           // "oto" = yeni resim yüklendi, atın yerini yapay zekâ bulsun
           if (b[k] === "oto") {

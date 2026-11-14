@@ -56,6 +56,10 @@
   .hero { position:relative; height:70vh; min-height:380px; max-height:620px; display:flex; align-items:center; overflow:hidden; background:#102414; margin-top:0; }
   .hero-slide { position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.6s ease-in-out; z-index:0; }
   .hero-slide.active { opacity:1; }
+  .hero-video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; background:#102414; }
+  .hero.videolu .hero-overlay { background:linear-gradient(180deg, rgba(10,20,12,0.15), rgba(10,20,12,0.6)); }
+  .ses-dugme { position:absolute; right:14px; bottom:14px; z-index:3; background:rgba(13,27,61,.78); color:#fff; border:1px solid rgba(255,255,255,.45); border-radius:22px; padding:9px 15px; font-size:14px; font-weight:700; cursor:pointer; -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); }
+  .ses-dugme:hover { background:rgba(13,27,61,.92); }
   .hero-overlay { position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,20,12,0.4), rgba(10,20,12,0.78)); z-index:1; }
   .hero-inner { position:relative; z-index:2; max-width:1100px; margin:0 auto; padding:0 20px; color:#fff; }
   .hero-eyebrow { font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9fd9ab; margin-bottom:12px; }
@@ -230,6 +234,7 @@
   <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_3}}');background-position:{{HERO_POS_3}}"></div>
   <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_4}}');background-position:{{HERO_POS_4}}"></div>
   <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_5}}');background-position:{{HERO_POS_5}}"></div>
+  <!--HERO_VIDEO-->
   <div class="hero-overlay"></div>
   <div class="hero-inner">
     <div class="hero-eyebrow"><!--HERO_EYEBROW_START--><!--HERO_EYEBROW_END--></div>
@@ -420,7 +425,33 @@ function togglePedigri(){
   }
 })();
 
+// Açılış videosu: tarayıcılar sesli otomatik oynatmaya izin vermez → video sessiz başlar,
+// ziyaretçi sayfada ilk dokunduğunda (ses açık ayarlıysa ve kendisi kapatmadıysa) ses açılır. 🔊 düğmesi aç/kapa.
 (function(){
+  var v = document.getElementById("heroVideo"), d = document.getElementById("sesDugme");
+  if (!v || !d) return;
+  document.querySelector(".hero").classList.add("videolu");
+  var kapali = false; try { kapali = localStorage.getItem("bdSes") === "kapali"; } catch (e) {}
+  var sesli = function () { return !v.muted; };
+  var yaz = function () { d.textContent = sesli() ? "🔊 Sesi kapat" : "🔇 Sesi aç"; };
+  var sesAc = function () { v.muted = false; v.volume = 1; var p = v.play(); if (p && p.catch) p.catch(function () { v.muted = true; yaz(); }); yaz(); };
+  d.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (sesli()) { v.muted = true; try { localStorage.setItem("bdSes", "kapali"); } catch (x) {} }
+    else { try { localStorage.removeItem("bdSes"); } catch (x) {} kapali = false; sesAc(); }
+    yaz();
+  });
+  if (v.dataset.ses === "1" && !kapali) {
+    var ilk = function () { ["click", "touchend", "keydown"].forEach(function (t) { document.removeEventListener(t, ilk, true); }); if (!sesli() && !kapali) sesAc(); };
+    ["click", "touchend", "keydown"].forEach(function (t) { document.addEventListener(t, ilk, true); });
+    sesAc(); // bazı tarayıcılar (daha önce siteyle etkileşim olduysa) hemen izin verir
+  }
+  document.addEventListener("visibilitychange", function () { if (document.hidden) v.pause(); else v.play().catch(function () {}); });
+  yaz();
+})();
+
+(function(){
+  if (document.getElementById("heroVideo")) return; // video varken resim geçişine gerek yok
   var slides = document.querySelectorAll(".hero-slide");
   if (slides.length < 2) return;
   var i = 0;
