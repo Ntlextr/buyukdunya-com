@@ -494,7 +494,7 @@ async function saveSiteIcerik() {
 
 function absUrl(u) {
   if (!u) return "";
-  return /^https?:\/\//.test(u) ? u : "/" + u.replace(/^\/+/, "");
+  return /^https?:\\/\\//.test(u) ? u : "/" + u.replace(/^\\/+/, "");
 }
 
 async function loadSiteAyarlar() {
@@ -530,7 +530,7 @@ async function clearLogo() {
 async function saveSiteAyarlar() {
   try {
     const body = {
-      whatsapp_no: document.getElementById("sa-wano").value.replace(/\D/g, ""),
+      whatsapp_no: document.getElementById("sa-wano").value.replace(/\\D/g, ""),
       talep_aciklama: document.getElementById("sa-talep").value,
       footer_aciklama: document.getElementById("sa-faciklama").value,
       footer_telif: document.getElementById("sa-ftelif").value,
@@ -606,7 +606,7 @@ function resizeImageFile(file, maxW, maxH) {
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
         canvas.toBlob((blob) => {
           if (!blob) { resolve(file); return; }
-          resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
+          resolve(new File([blob], file.name.replace(/\\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
         }, "image/jpeg", 0.9);
       };
       img.onerror = () => resolve(file);
@@ -637,7 +637,7 @@ function resizeToWebp(file, maxW, maxH, quality) {
           if (!blob) { resolve(file); return; }
           const isWebp = blob.type === "image/webp";
           const ext = isWebp ? ".webp" : ".jpg";
-          resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ext, { type: blob.type || "image/jpeg" }));
+          resolve(new File([blob], file.name.replace(/\\.[^.]+$/, "") + ext, { type: blob.type || "image/jpeg" }));
         }, "image/webp", quality);
       };
       img.onerror = () => resolve(file);
