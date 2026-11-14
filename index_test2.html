@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BÜYÜKDÜNYA | Damızlık Yarış Aygırı</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color:#1a1a1a; background:#fff; line-height:1.6; }
+  a { text-decoration:none; color:inherit; }
+  img { max-width:100%; display:block; }
+
+  /* Header */
+  :root{ --navy:#0d1b3d; --navy2:#152a5c; --gold:#c9a24b; --gold2:#e8c877; }
+  header { position:fixed; top:0; left:0; width:100%; z-index:1000; background:var(--navy); }
+  .nav-wrap { max-width:1200px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 20px; gap:18px; }
+  .logo-wrap { display:flex; align-items:center; flex-shrink:0; }
+  .logo-wrap img { height:42px; width:auto; border-radius:4px; background:#fff; padding:2px 6px; }
+  nav { display:flex; gap:18px; flex-wrap:wrap; flex:1; justify-content:center; }
+  nav a { color:#f2e9d8; font-size:13px; letter-spacing:0.4px; text-transform:uppercase; }
+  nav a:hover { color:var(--gold2); }
+  .wa-pill { background:#25D366; color:#fff !important; padding:9px 16px; border-radius:30px; font-size:12.5px; font-weight:700; letter-spacing:.3px; text-transform:none; white-space:nowrap; flex-shrink:0; }
+  .ticker { background:var(--navy2); color:var(--gold2); text-align:center; padding:7px 10px; font-size:12.5px; letter-spacing:.3px; margin-top:62px; }
+  .burger { display:none; flex-direction:column; gap:5px; background:none; border:none; cursor:pointer; padding:6px; flex-shrink:0; }
+  .burger span { width:24px; height:2px; background:#fff; display:block; }
+  @media (max-width:900px){
+    nav { display:none; position:absolute; top:100%; left:0; width:100%; background:var(--navy2); flex-direction:column; gap:0; padding:8px 0; }
+    nav.open { display:flex; }
+    nav a { padding:13px 20px; width:100%; border-bottom:1px solid rgba(255,255,255,0.08); }
+    .burger { display:flex; }
+    .wa-pill { display:none; }
+  }
+
+  /* Performans banner (ikinci banner alanı) */
+  .perf-banner { background:var(--navy); }
+  .perf-top { position:relative; min-height:280px; display:flex; align-items:center; overflow:hidden; }
+  .perf-top img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 25%; }
+  .perf-top::after { content:""; position:absolute; inset:0; background:linear-gradient(100deg, rgba(13,27,61,.95) 30%, rgba(13,27,61,.45) 65%, rgba(13,27,61,.15) 100%); }
+  .perf-text { position:relative; z-index:2; padding:36px 40px; max-width:520px; color:#fff; }
+  .perf-text .tag { color:var(--gold2); font-weight:700; letter-spacing:1px; font-size:12px; text-transform:uppercase; margin-bottom:8px; }
+  .perf-text h2 { font-size:24px; margin-bottom:10px; color:#fff; }
+  .perf-text p { font-size:14px; line-height:1.6; color:#dcd6c8; font-weight:300; }
+  .icon-row { display:flex; justify-content:space-between; background:var(--navy2); padding:20px 30px; flex-wrap:wrap; gap:14px; }
+  .icon-item { flex:1; min-width:130px; text-align:center; color:#f2e9d8; }
+  .icon-item .ic { font-size:24px; margin-bottom:6px; }
+  .icon-item .lbl { font-size:12.5px; font-weight:700; letter-spacing:.3px; }
+  .icon-item .sub { font-size:11px; color:#b9b0a0; margin-top:2px; }
+  @media (max-width:700px){ .perf-text{ max-width:100%; padding:28px 22px; } .icon-row{ padding:16px 14px; } }
+
+  /* Hero */
+  .hero { position:relative; height:70vh; min-height:380px; max-height:620px; display:flex; align-items:center; overflow:hidden; background:#102414; margin-top:0; }
+  .hero-slide { position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.6s ease-in-out; z-index:0; }
+  .hero-slide.active { opacity:1; }
+  .hero-overlay { position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,20,12,0.4), rgba(10,20,12,0.78)); z-index:1; }
+  .hero-inner { position:relative; z-index:2; max-width:1100px; margin:0 auto; padding:0 20px; color:#fff; }
+  .hero-eyebrow { font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9fd9ab; margin-bottom:12px; }
+  .hero h1 { font-size:clamp(34px, 7vw, 64px); font-weight:800; letter-spacing:1px; margin-bottom:10px; }
+  .hero-tagline { font-size:clamp(14px,2vw,18px); color:#e8f0e9; max-width:580px; font-weight:300; }
+  .hero-cta { margin-top:22px; display:flex; gap:12px; flex-wrap:wrap; }
+  .btn { display:inline-block; padding:12px 26px; border-radius:30px; font-size:13px; font-weight:600; letter-spacing:0.5px; }
+  .btn-primary { background:#25D366; color:#fff; }
+  .btn-outline { border:1px solid #fff; color:#fff; }
+
+  /* Stat strip */
+  .stat-strip { background:#102414; padding:30px 20px; }
+  .stat-grid { max-width:1100px; margin:0 auto; display:flex; flex-wrap:wrap; justify-content:space-around; text-align:center; gap:20px; }
+  .stat-item { color:#fff; min-width:140px; }
+  .stat-num { font-size:30px; font-weight:800; color:#9fd9ab; }
+  .stat-label { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#cfe3d1; margin-top:4px; }
+
+  /* Sections */
+  section { padding:70px 20px; max-width:1100px; margin:0 auto; }
+  .sec-title { font-size:28px; font-weight:800; color:#102414; margin-bottom:8px; }
+  .sec-line { width:50px; height:3px; background:#25D366; margin-bottom:34px; }
+  .section-alt { background:#f6f8f6; }
+
+  .about-text { font-size:15px; color:#333; column-count:1; }
+  .about-text p { margin-bottom:14px; text-align:justify; }
+
+  /* Gelismeler */
+  .gel-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:20px; }
+  .gel-card { background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 3px 14px rgba(0,0,0,0.07); }
+  .gel-card img { width:100%; height:180px; object-fit:cover; }
+  .gel-body { padding:18px; }
+  .gel-tarih { font-size:12px; color:#25D366; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+  .gel-baslik { font-size:17px; font-weight:700; margin:6px 0 8px; color:#102414; }
+  .gel-icerik { font-size:14px; color:#555; }
+
+  /* Galeri */
+  .gal-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:14px; }
+  .gal-item { border-radius:8px; overflow:hidden; aspect-ratio:4/3; }
+  .gal-item img, .gal-item video { width:100%; height:100%; object-fit:cover; }
+
+  /* Kisraklar */
+  .kis-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:20px; }
+  .kis-card { background:#fff; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.07); padding:18px; display:flex; gap:16px; flex-wrap:wrap; }
+  .kis-card img { width:90px; height:90px; object-fit:cover; flex-shrink:0; }
+  @media (max-width:420px){ .kis-card img { width:100%; height:160px; } }
+  .kis-adi { font-weight:700; color:#102414; font-size:16px; }
+  .kis-sahip { font-size:12px; color:#25D366; font-weight:700; }
+  .kis-aciklama { font-size:13px; color:#555; margin-top:4px; }
+
+  .bos-icerik { color:#999; font-style:italic; }
+
+  /* Pedigree */
+  .pedigree-box img { border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.1); }
+
+  /* Talep form */
+  .talep-form { max-width:520px; display:flex; flex-direction:column; gap:12px; }
+  .talep-form input, .talep-form textarea { padding:13px 16px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; }
+  .talep-form textarea { min-height:90px; }
+  .talep-form button { background:#102414; color:#fff; border:none; padding:13px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+  #talep-msg { font-size:14px; }
+
+  /* Soft / cloud-like image corners everywhere */
+  .gel-card img, .gal-item, .kis-card img, .pedigree-box img, .iletisim-img, .hero-slide {
+    border-radius:22px;
+  }
+  .gel-card { border-radius:22px; box-shadow:0 10px 30px rgba(16,36,20,0.10); }
+  .gal-item { box-shadow:0 10px 24px rgba(16,36,20,0.10); }
+  .kis-card { border-radius:22px; box-shadow:0 10px 30px rgba(16,36,20,0.10); }
+  .pedigree-box img { box-shadow:0 10px 30px rgba(16,36,20,0.12); }
+  .iletisim-img { box-shadow:0 10px 30px rgba(16,36,20,0.12); }
+
+  footer { background:#102414; color:#cfe3d1; padding:50px 20px 24px; font-size:14px; }
+  .foot-wrap { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:28px; padding-bottom:24px; border-bottom:1px solid rgba(255,255,255,0.1); }
+  .foot-col h4 { color:#fff; font-size:14px; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:14px; }
+  .foot-col a, .foot-col p { display:block; color:#cfe3d1; font-size:13px; margin-bottom:8px; }
+  .foot-col a:hover { color:#9fd9ab; }
+  .foot-logo { color:#fff; font-size:20px; font-weight:800; margin-bottom:10px; }
+  .foot-bottom { max-width:1100px; margin:0 auto; padding-top:18px; text-align:center; font-size:12px; color:#8fa691; }
+
+  .whatsapp-float {
+    position: fixed; bottom: 20px; right: 20px; background:#25D366; width:56px; height:56px;
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:9999;
+  }
+</style>
+</head>
+<body>
+
+<a href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="whatsapp-float" aria-label="WhatsApp" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'float-test1'})}).catch(()=>{})"
+  <svg viewBox="0 0 32 32" width="30" height="30" fill="#ffffff"><path d="M16.004 3C9.096 3 3.5 8.596 3.5 15.504c0 2.59.766 4.998 2.08 7.018L4 29l6.676-1.75a12.42 12.42 0 0 0 5.328 1.25h.004c6.908 0 12.504-5.596 12.504-12.504S22.912 3 16.004 3zm0 22.77c-1.77 0-3.49-.47-4.996-1.36l-.358-.213-3.956 1.036 1.057-3.855-.233-.396a10.37 10.37 0 0 1-1.588-5.478c0-5.75 4.676-10.426 10.078-10.426 5.4 0 10.077 4.676 10.077 10.426 0 5.75-4.676 10.266-10.08 10.266zm5.74-7.65c-.314-.157-1.86-.918-2.148-1.023-.288-.105-.498-.157-.708.157-.21.313-.812 1.023-.995 1.233-.183.21-.366.236-.68.08-1.837-.918-3.04-1.64-4.25-3.72-.321-.552.321-.513.918-1.706.1-.21.05-.393-.052-.55-.105-.157-.708-1.706-.97-2.33-.26-.628-.524-.543-.708-.552-.183-.01-.393-.01-.602-.01-.21 0-.55.078-.838.392-.288.313-1.1 1.075-1.1 2.622 0 1.546 1.126 3.04 1.283 3.25.157.21 2.162 3.302 5.24 4.5 2.597.995 3.125.797 3.69.746.566-.052 1.86-.76 2.123-1.495.262-.734.262-1.363.183-1.495-.078-.13-.288-.21-.602-.366z"/></svg>
+</a>
+
+<header>
+  <div class="nav-wrap">
+    <a href="#" class="logo-wrap"><img src="aygirlar/images/logo-buyukdunya.jpg" alt="BÜYÜKDÜNYA"></a>
+    <nav id="main-nav">
+      <a href="#hakkinda" class="js-scroll">Hakkında</a>
+      <a href="#yarisrekorlari" class="js-scroll">Yarış Rekorları</a>
+      <a href="#galeri" class="js-scroll">Galeri</a>
+      <a href="#gelismeler" class="js-scroll">Haberler</a>
+      <a href="#kisraklar" class="js-scroll">Kısraklar</a>
+      <a href="#talep" class="js-scroll">Talep Formu</a>
+      <a href="#pedigree" class="js-scroll">Pedigree</a>
+      <a href="#iletisim" class="js-scroll">İletişim</a>
+    </nav>
+    <a class="wa-pill" href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank">WhatsApp</a>
+    <button class="burger" id="burger-btn" aria-label="Menü"><span></span><span></span><span></span></button>
+  </div>
+</header>
+<div class="ticker">2027 Aşım Sezonunda Sizlerle — Kısrağınızı BÜYÜKDÜNYA ile eşleştirin</div>
+
+<div class="hero">
+  <div class="hero-slide active" style="background-image:url('{{HERO_SLIDE_1}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_2}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_3}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_4}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_5}}')"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow"><!--HERO_EYEBROW_START--><!--HERO_EYEBROW_END--></div>
+    <h1>BÜYÜKDÜNYA</h1>
+    <div class="hero-tagline"><!--HERO_TAGLINE_START-->2027 aşım sezonunda sizlerle — güçlü soy ağacı, kanıtlanmış yarış performansı.<!--HERO_TAGLINE_END--></div>
+    <div class="hero-cta">
+      <a href="#talep" class="btn btn-primary js-scroll">Talepte Bulun</a>
+      <a href="#hakkinda" class="btn btn-outline js-scroll">Devamını Oku</a>
+    </div>
+  </div>
+</div>
+
+<div class="stat-strip" id="yarisrekorlari">
+  <div class="stat-grid">
+    <!--STATS_START-->
+    <div class="stat-item"><div class="stat-num">32</div><div class="stat-label">Yarış</div></div>
+    <div class="stat-item"><div class="stat-num">16</div><div class="stat-label">Birincilik</div></div>
+    <div class="stat-item"><div class="stat-num">2</div><div class="stat-label">Grup Koşu Birinciliği</div></div>
+    <div class="stat-item"><div class="stat-num">11</div><div class="stat-label">KV Birinciliği</div></div>
+    <!--STATS_END-->
+  </div>
+</div>
+
+<section class="perf-banner">
+  <div class="perf-top">
+    <img src="aygirlar/images/performans-banner.jpg" alt="Büyükdünya yarış kazandı">
+    <div class="perf-text">
+      <div class="tag">Pistten Kanıt</div>
+      <h2>Kanıtlanmış Yarış Performansı</h2>
+      <p>Hipodromda defalarca kanıtladığı hız ve dayanıklılık, soyundan gelenlere aktarılıyor.</p>
+    </div>
+  </div>
+  <div class="icon-row">
+    <div class="icon-item"><div class="ic">📋</div><div class="lbl">Pedigri Analizi</div><div class="sub">Uzman soy ağacı incelemesi</div></div>
+    <div class="icon-item"><div class="ic">🧬</div><div class="lbl">Soy Uyumu</div><div class="sub">Kısrak-aygır eşleştirme</div></div>
+    <div class="icon-item"><div class="ic">🏆</div><div class="lbl">Yarış Rekoru</div><div class="sub">Kanıtlanmış performans</div></div>
+    <div class="icon-item"><div class="ic">💬</div><div class="lbl">Hızlı Dönüş</div><div class="sub">WhatsApp üzerinden talep</div></div>
+  </div>
+</section>
+
+<section id="hakkinda">
+  <div class="sec-title">Hakkında</div>
+  <div class="sec-line"></div>
+  <div class="about-text">
+    <p><strong><!--HAKKINDA_BASLIK_START-->2027 Aşım Sezonunda Sizlerle.<!--HAKKINDA_BASLIK_END--></strong></p>
+    <p style="white-space:pre-line"><!--HAKKINDA_METIN_START-->Diğer taraftan babası Karakemal’ın babası Halid’in Haberbatur ile anne kardeşi ve annesi Kamer 18’in de, “Hilalüzzaman 25-Kemiyetülırak 26” orjinli olması sebebi ile birçok tanıdık sima ile tam veya anne kardeşi olduğunu görmekteyiz.
+
+Kamer 18’in tam kardeşlerinden biri olan Ajda isimli kısrak, Rihem’in en iyi baba kardeşi olan ve G2/G3 klasta yarışlar kazanmayı başaran Burkal’ın da büyük annesidir. Dolayısı ile bu değerli atta “Kamer 18/Ajda” üzerinden bir Rasmussen faktör söz konusudur.
+
+O halde Büyükdünya, gerek Ajda, gerekse bahsettiğimiz Kemiyetülırak 26 bağlantılı tüm isimler ve söz konusu familyadan gelen ile eşleşmesi halinde, Kemiyetülırak 26 yoğunluklu soy ağaçları kurulacaktır, değerli at Burkal da olduğu gibi.
+
+Ayrıca yine Rihem’in en iyi baba kardeşleri arasında yer alan Peköz’ün büyük annesi Birgi de Ajda’nın kızıdır, dolayısı ile bu başarılı örnekte de “Kamer 18/Ajda” tam bağlantısı mevcuttur.
+
+Özellikle Kemiyetülırak neslinden türeyen aygır ve dolayısı ile bu hatlardan gelen kısraklar ile Büyükdünya ile eşleşmelerinde Kemiyetülırak 26 akrabalığı pedigriler için değerli bir husus olacaktır.
+
+Bunların başında Haberbatur gelir ve Büyükdünya’nın baba kardeşleri içinde en iyi olanların bazılarında kısrak babası da Haberbatur’dur ve Dündarzade, Orhunkaan, Torosdağı, Berkenin Kızı, Tuncer, Mister Win gibi örneklerde bunu görebiliriz.
+
+Ayrıca Haberbatur’un aygır oğulları Sarraf, Haberkan, Özhaber, Kırımhan, Kıvanç Can gibi isimlerin temsilcileri de Büyükdünya eşleşmeleri için uygunluk arz edebilir ki, bunlar için Özhaber ve Haberkan, Kemiyetülırak 26 üzerine akrabalıkları ile Büyükdünya eşleşmeleri için oldukça değerli soy unsurlarına sahiptir.
+
+Ayrıca Kemiyetülırak 26 neslinden gelen diğer isimlerden ;
+
+Odinhan ve oğlu Gelibolu ile Odinhan’ın tam kardeşleri Koşayalp, Adanır, Ben Anadolu ve bu isimlerin anne kardeşlerinden Firikya ve yine bu familyadan türemiş Güntay ve Bitirimkarınca temsilcileri de Büyükdünya eşleşmeleri için katkı yapabilecek diğer isimlerdendir.
+
+Diğer taraftan Ajda’nın aygır oğullarından Bozdağ ve Dayıbey kan hatları da Büyükdünya eşleşmeleri için katkı yapabilecek diğer soylardandır.
+
+Yine Rihem’in soy ağacında dikkat çeken noktalardan biri de Satvet, Kamer 18 (dolayısı ile Karakemal), Araslı ve Umutbey vasıtası ile Kemiyetülırak bağlantılarıdır.
+
+Kemiyetülırak etkileşimleri, aygırın eşleşmeleri için değerlidir, zira analiz girişinde bahsettiğimiz Kamer 18’in de bu familyadandır, dolayısı ile hem Mencule, hem de Kemiyetülırak bağlantıları sağlaması açısından Kamer 18’in varlığı, Büyükdünya için oldukça değerlidir.
+
+Yine Rihem’in başarılı baba kardeşleri arasında yer alan Eko Hat’ın annesi Serdarhan’ın kızıdır ve bu aygır da Serdarbey’in babasıdır.
+
+Serdarbey de “Doruhan- Kemiyetülırak 22” orijinli olup, bu örnekte de yukarıda ifade ettiğimiz Kemiyetülırak bağlantılarını görebileceğimiz gibi, ayrıca Serdarbey’in bu atın tam kardeşleri Kemiyetülırak 29, Kemiyetülırak 31, Kemiyetülırak 35 bağlantıları kısrak için değerlidir.
+
+İfade edilen bu isimler içinde Kemiyetülırak 29, Umutbey, Sava, Beyazmartı’nın da anneleri olup, bunlardan Umutbey, Büyükdünya’nın ikinci kısrak babasıdır. Dolayısı ile soy ağaçlarında “Sava-Atak-Savabey”, “ Beyazmartı-Balıkhan” isimleri olan kısrakların yanı sıra,
+
+Kemiyetülırak 35’in kızları Kemiyetülırak 45 ve Kemiyetülırak 52 bağlantılı isimler de eşleşme için değerlidir ve bu dişilerden türeyen Koşanefe, Benim Oğlum, Akcan, Börühan, Asalbey aygır temsilcileri ve tabi ki soy ağacında bulunan isimler de Büyükdünya için uyumlu soy ağaçları içerir.
+
+Büyükdünya’nın anne hattındaki en değerli isimlerden biri hiç şüphesiz Atomkarınca’dır.
+
+Atomkarınca’nın annesi olan Şahide 47, aynı zamanda Büyükdünya’nın da üçüncü annesidir.
+
+Dolayısı ile Atomkarınca’nın babası Şövalye ve onun babası Havuçerol bu isimlerin yer aldığı pedigrilere sahip kısraklar da Büyükdünya ile uyum potansiyeline sahiptir.
+
+Bu bağlamda yukarıda Kemiyetülırak 26 vesilesi ile ifade ettiğimiz isimlerden Bitirimkarınca da hem baba, hem anne hattı ile, Büyükdünya eşleşmeleri için önem arz edebilir.
+
+Ayrıca Atomkarınca temsilcileri ile olabilecek eşleşmelerde Şahide 47 üzerine de akrabalık olacaktır.
+
+Büyükdünya’nın annesi Rihem’in annesi Gül Perisi, Harika isimli kısrağın kızıdır ki bu kısrak da çok özel bir anne nesli olan Şahide familyasından gelir. Harika isimli kısrak ismi gibi çok değerli bir annelik kariyerinde imza atmıştır.
+
+Harika’nın yavruları arasında :
+
+Grup 2 galibi Bilgekurt (Altaha)
+
+Grup 2 galibi Kayasel (Altaha)
+
+Grup 3 galibi Nilda (Altaha)
+
+Gibi isimler en önde gelen temsilcileridirler.
+
+Büyükdünya’nın baba kardeşleri içinde en iyi olanların bazılarında da Şahide nesli etkin rol oynamıştır.
+
+Örneğin Gümbürgümbür’ün anne familyası de Şahide neslinden gelir ve üçüncü annesi Şahide 41, Büyükdünya’nın dördüncü annesi Şahide 39 ile tam kardeştir.
+
+Keza Kıyıcı’nın soy ağacından da bu böyledir ve o da Şahide 41’den gelmedir.
+
+Dolayısı ile özellikle Şahide 41 familya bağlantılı kısrakların Büyükdünya ile eşleşmelerinde “Şahide 39/Şahide 41” tam kardeş isimlerin pedigriye katılımı değerli olabilir, tıpkı Büyükdünya’nın baba kardeşleri içinde en iyilerden olan Gümbürgümbür ve Kıyıcı da olduğu gibi.
+
+Büyükdünya’nın en iyi baba kardeşleri incelendiğinde Yalaz isminin de Köçek, Gündüzdüşü, Şanverdi ve Tekçarem’in kısrak baba hatlarında yer aldığını görmekteyiz.
+
+Yalaz’ın annesi Tuluğ, Volga 2’nin tam kardeşi olup, kısrağın soy ağacında da Hilalüzzaman 25 ve Satvet vasıtası ile hem Mencule, hem de Kemiyetülırak soy bağlantılarını görmekteyiz.
+
+Dolayısı ile Yalaz ve onun annesinin tam kardeşi olan Volga 2 isimlerini soy ağaçlarında taşıyan kısraklar, şüphesiz diğer soy etkenleri de irdelenerek Büyükdünya ile uyumları değerlendirilebilir.
+
+Turbo kızları da Büyükdünya için uygun olabilir, zira bu aygırın kısrak babası olan Özüşan ismi hem Büyükdünya’nın soy ağacında yer alır, hem de Hilalüzzaman 25 ile anne kardeşi olması dolayısı ile Mencule bağlantılarını güçlendirir.
+
+Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
+  </div>
+</section>
+
+<section id="gelismeler" class="section-alt">
+  <div class="sec-title">Haberler</div>
+  <div class="sec-line"></div>
+  <div class="gel-grid"><!--NEWS_START--><!--NEWS_END--></div>
+</section>
+
+<section id="galeri">
+  <div class="sec-title">Galeri</div>
+  <div class="sec-line"></div>
+  <div class="gal-grid"><!--GALLERY_START--><!--GALLERY_END--></div>
+</section>
+
+<section id="kisraklar" class="section-alt">
+  <div class="sec-title">Eşleşen Kısraklar</div>
+  <div class="sec-line"></div>
+  <div class="kis-grid"><!--KISRAK_START--><!--KISRAK_END--></div>
+</section>
+
+<section id="pedigree" class="pedigree-box">
+  <div class="sec-title">Pedigree</div>
+  <div class="sec-line"></div>
+  <img src="{{PEDIGREE_IMG}}" alt="Büyükdünya Pedigree">
+</section>
+
+<section id="talep" class="section-alt">
+  <div class="sec-title">Talep Formu</div>
+  <div class="sec-line"></div>
+  <p style="margin-bottom:18px; color:#555;">{{TALEP_ACIKLAMA}}</p>
+  <form id="talep-form" class="talep-form" onsubmit="return false;">
+    <input type="text" id="t-ad" placeholder="Ad Soyad" required>
+    <input type="text" id="t-telefon" placeholder="Telefon" required>
+    <input type="text" id="t-kisrak" placeholder="Kısrak bilgisi (isim/soy)">
+    <textarea id="t-mesaj" placeholder="Mesajınız"></textarea>
+    <button type="button" onclick="talepGonder()">Gönder</button>
+    <div id="talep-msg"></div>
+  </form>
+</section>
+
+<section id="iletisim">
+  <div class="sec-title">İletişim</div>
+  <div class="sec-line"></div>
+  <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
+    <img src="{{ILETISIM_IMG}}" alt="Büyükdünya" class="iletisim-img" style="width:220px;">
+    <div style="font-size:15px; color:#333;">
+      <p style="margin-bottom:8px;"><strong>BÜYÜKDÜNYA</strong></p>
+      <p style="margin-bottom:8px;">WhatsApp / Telefon: <a href="tel:+{{WA_NO}}" style="color:#25D366; font-weight:700;">{{WA_NO_DISPLAY}}</a></p>
+      <a href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="btn btn-primary" style="background:#25D366; display:inline-block; margin-top:6px;" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'iletisim-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-wrap">
+    <div class="foot-col">
+      <div class="foot-logo">BÜYÜKDÜNYA</div>
+      <p>{{FOOTER_ACIKLAMA}}</p>
+    </div>
+    <div class="foot-col">
+      <h4>Hızlı Bağlantılar</h4>
+      <a href="#hakkinda" class="js-scroll">Hakkında</a>
+      <a href="#gelismeler" class="js-scroll">Haberler</a>
+      <a href="#galeri" class="js-scroll">Galeri</a>
+      <a href="#kisraklar" class="js-scroll">Kısraklar</a>
+      <a href="#pedigree" class="js-scroll">Pedigree</a>
+    </div>
+    <div class="foot-col">
+      <h4>İletişim</h4>
+      <a href="tel:+{{WA_NO}}">{{WA_NO_DISPLAY}}</a>
+      <a href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'footer-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
+      <a href="#talep" class="js-scroll">Talep Formu</a>
+    </div>
+  </div>
+  <div class="foot-bottom">{{FOOTER_TELIF}}</div>
+</footer>
+
+<script>
+(function(){
+  var burger = document.getElementById("burger-btn");
+  var nav = document.getElementById("main-nav");
+  if (burger && nav) {
+    burger.addEventListener("click", function(){ nav.classList.toggle("open"); });
+    nav.querySelectorAll("a").forEach(function(a){
+      a.addEventListener("click", function(){ nav.classList.remove("open"); });
+    });
+  }
+})();
+
+(function(){
+  var slides = document.querySelectorAll(".hero-slide");
+  if (slides.length < 2) return;
+  var i = 0;
+  setInterval(function(){
+    slides[i].classList.remove("active");
+    i = (i + 1) % slides.length;
+    slides[i].classList.add("active");
+  }, 4500);
+})();
+
+document.querySelectorAll(".js-scroll").forEach(function(el){
+  el.addEventListener("click", function(e){
+    e.preventDefault();
+    var target = document.querySelector(el.getAttribute("href"));
+    if (target) target.scrollIntoView({ behavior:"smooth", block:"start" });
+  });
+});
+
+function talepGonder() {
+  var ad = document.getElementById("t-ad").value.trim();
+  var telefon = document.getElementById("t-telefon").value.trim();
+  var kisrak = document.getElementById("t-kisrak").value.trim();
+  var mesaj = document.getElementById("t-mesaj").value.trim();
+  var msgEl = document.getElementById("talep-msg");
+  if (!ad || !telefon) {
+    msgEl.textContent = "Ad soyad ve telefon gerekli.";
+    msgEl.style.color = "#c0392b";
+    return;
+  }
+  fetch("/api/talep-gonder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ad_soyad: ad, telefon: telefon, kisrak_bilgisi: kisrak, mesaj: mesaj })
+  }).then(function(r) {
+    if (r.ok) {
+      msgEl.textContent = "Talebiniz alındı, en kısa sürede dönüş yapılacaktır.";
+      msgEl.style.color = "#1e7e34";
+      document.getElementById("talep-form").reset();
+    } else {
+      msgEl.textContent = "Bir hata oluştu, lütfen tekrar deneyin.";
+      msgEl.style.color = "#c0392b";
+    }
+  }).catch(function() {
+    msgEl.textContent = "Bir hata oluştu, lütfen tekrar deneyin.";
+    msgEl.style.color = "#c0392b";
+  });
+}
+</script>
+</body>
+</html>
