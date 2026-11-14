@@ -192,7 +192,7 @@ async function servePublicPage(path, env) {
     "{{WA_NO}}": waNo,
     "{{WA_NO_DISPLAY}}": formatPhoneTR(waNo),
     "{{PEDIGREE_IMG}}": icerik.pedigree_img || "pedigree2.jpg",
-    "{{ILETISIM_IMG}}": icerik.iletisim_img || "aygirlar/images/buyuk.jpg",
+    "{{ILETISIM_IMG}}": icerik.iletisim_img || "aygirlar/images/slider2.jpg",
     "{{HERO_SLIDE_1}}": icerik.hero_slide1 || "aygirlar/images/slider2.jpg",
     "{{HERO_SLIDE_2}}": icerik.hero_slide2 || "aygirlar/images/slider3.jpg",
     "{{HERO_SLIDE_3}}": icerik.hero_slide3 || "aygirlar/images/slider4.jpg",
@@ -1089,8 +1089,6 @@ export default {
     // --- Public site ---
     if (path === "/" || path === "") path = "/index.html";
     if (path === "/index.html") return servePublicPage(path, env);
-    if (path === "/test1") return servePublicPage("/index_test1.html", env);
-    if (path === "/test2") return servePublicPage("/index_test2.html", env);
     return serveStaticAsset(path);
   },
 };
