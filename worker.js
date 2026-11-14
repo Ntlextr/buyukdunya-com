@@ -869,7 +869,7 @@ export default {
       });
     }
     if (path === "/panel") {
-      return new Response(PANEL_HTML, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+      return new Response(PANEL_HTML, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
     }
 
     // --- API ---
