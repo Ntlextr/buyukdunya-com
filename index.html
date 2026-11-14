@@ -172,11 +172,13 @@
   .r-kaynak { font-size:12px !important; color:#7a847c !important; margin-top:10px; }
   .r-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:8px 0 16px; }
   .r-stat { background:#1f4a2c; color:#fff; border-radius:14px; padding:16px; }
-  .r-stat b { display:block; font-family:Georgia, serif; font-size:26px; color:#e8c877; }
+  .r-stat b { display:block; font-family:Georgia, serif; font-size:clamp(19px,5.4vw,26px); color:#e8c877; white-space:nowrap; }
   .r-stat span { font-size:13px; opacity:.9; }
   .r-tablo { overflow-x:auto; -webkit-overflow-scrolling:touch; margin:10px 0 16px; border-radius:10px; border:1px solid #e3e8e3; }
-  .r-tablo table { border-collapse:collapse; width:100%; font-size:13.5px; min-width:480px; }
-  .r-tablo th { background:#1f4a2c; color:#fff; text-align:left; padding:9px 10px; font-weight:700; white-space:nowrap; }
+  .r-tablo table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  .r-tablo.genis table { min-width:520px; }
+  .r-tablo th { background:#1f4a2c; color:#fff; text-align:left; padding:9px 10px; font-weight:700; }
+  .r-tablo.genis th { white-space:nowrap; }
   .r-tablo td { padding:8px 10px; border-top:1px solid #edf0ed; vertical-align:top; }
   .r-tablo tbody tr:nth-child(odd) { background:#f6f4ec; }
   .r-pdf { display:inline-block; margin:22px auto 0; background:#1f4a2c; color:#fff !important; padding:13px 22px; border-radius:30px; font-weight:700; font-size:14px; }

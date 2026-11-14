@@ -284,7 +284,7 @@ function raporMetinHtml(metin, gizliGoster) {
       while (i < temiz.length && temiz[i].trim().includes(" | ")) { rows.push(temiz[i].trim().split("|").map((x) => x.trim())); i++; }
       const th = rows[0].map((c) => `<th>${raporSatirIc(c)}</th>`).join("");
       const tb = rows.slice(1).map((r) => `<tr>${r.map((c) => `<td>${raporSatirIc(c)}</td>`).join("")}</tr>`).join("");
-      out += `<div class="r-tablo"><table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`;
+      out += `<div class="r-tablo${rows[0].length >= 4 ? " genis" : ""}"><table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`;
       continue;
     }
     const p = [];
