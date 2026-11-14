@@ -61,6 +61,15 @@ input{width:100%;padding:11px 12px;border:1px solid var(--cizgi);border-radius:1
 .akis time{color:var(--soluk);margin-right:6px}
 #pencere{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
 #pencere .kutu{max-width:380px;width:100%}
+.msj{border-top:1px solid var(--cizgi);padding:10px 16px;font-size:13px}
+.msj h4{margin:0 0 6px;font-size:14px;display:flex;align-items:center;gap:6px}
+.msj .rozet{background:#c0392b;color:#fff;border-radius:12px;padding:1px 8px;font-size:12px}
+.msj .m{background:#fbf6ea;border-radius:10px;padding:8px 10px;margin:6px 0;color:var(--yazi)}
+.msj .m small{color:var(--soluk)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:30;background:var(--koyu);color:#fff;border-radius:14px;padding:12px 16px;max-width:92vw;width:380px;box-shadow:0 8px 28px #0006;display:none;cursor:pointer}
+#toast b{color:var(--altin)}
+.bilBant{background:#fff3d6;border:1px solid #ecd9a6;border-radius:14px;padding:12px 14px;margin:0 0 14px;display:none;align-items:center;gap:10px;font-size:14px}
+.bilBant .btn{flex:0 0 auto;min-width:0}
 @media (max-width:420px){.kartlar{grid-template-columns:1fr}header .alt{display:none}}
 </style></head><body>
 <div id="girisEkran" style="display:none"><div class="kutu">
@@ -77,9 +86,11 @@ input{width:100%;padding:11px 12px;border:1px solid var(--cizgi);border-radius:1
 <main>
 <section class="bolum acik" id="b-ana">
 <div class="selam"><h1 id="selam">Hoş geldiniz</h1><p id="tarih"></p></div>
+<div class="bilBant" id="bilBant"><span style="font-size:22px">🔔</span><span style="flex:1">Mesajlar telefonunuza bildirim olarak gelsin mi?</span><button class="btn ana" id="bilBantAc">Aç</button></div>
 <div class="kartlar">
 <div class="kart lux"><div class="bas"><span class="ik">💆‍♀️</span><div><h2>Luxury Beauty Center</h2><small>Kadıköy · güzellik merkezi</small></div></div>
 <div class="sayilar" id="luxSay"><div class="sayi gen"><span>Yükleniyor…</span></div></div>
+<div class="msj" id="luxMsj" style="display:none"></div>
 <div class="dugmeler"><button class="btn ana" data-gir="luxury">🔑 Panele gir</button><a class="btn ikinci" target="_blank" rel="noopener" href="https://luxurybeauty-js.serdarcirak.workers.dev/">🌐 Siteyi aç</a></div></div>
 <div class="kart bd"><div class="bas"><span class="ik">🐎</span><div><h2>Şahlı Harası – BÜYÜKDÜNYA</h2><small>buyukdunya.com</small></div></div>
 <div class="sayilar" id="bdSay"><div class="sayi gen"><span>Yükleniyor…</span></div></div>
@@ -101,6 +112,10 @@ input{width:100%;padding:11px 12px;border:1px solid var(--cizgi);border-radius:1
 <label>Eski şifre</label><input type="password" id="hEski" autocomplete="current-password">
 <label>Yeni şifre (en az 6 karakter)</label><input type="password" id="hYeni" autocomplete="new-password">
 <button class="btn ana" style="margin-top:12px;width:100%" id="hKaydet">Kaydet</button><div class="hata" id="hHata"></div></div>
+<div class="kutu"><h3>🔔 Telefon bildirimleri</h3>
+<p class="not" id="bilDurum">Kontrol ediliyor…</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn ana" id="bilAc">Bildirimleri aç</button><button class="btn ikinci" id="bilDene" style="display:none">Deneme bildirimi</button><button class="btn ikinci" id="bilKapat" style="display:none">Kapat</button></div>
+<p class="not" style="margin-top:8px">iPhone'da bildirim için panel önce <b>ana ekrana eklenmiş</b> olmalı ve oradan açılmalı (iOS 16.4 ve üstü).</p></div>
 <div class="kutu"><h3>📱 Telefonun ana ekranına ekle</h3>
 <p class="not"><b>iPhone (Safari):</b> alttaki Paylaş düğmesine (kare + yukarı ok) dokunun → <b>Ana Ekrana Ekle</b> → <b>Ekle</b>. Ekranınızda "Şahlı Grup" simgesi çıkar.</p>
 <p class="not"><b>Android (Chrome):</b> sağ üstteki ⋮ → <b>Ana ekrana ekle</b>.</p></div>
@@ -108,6 +123,7 @@ input{width:100%;padding:11px 12px;border:1px solid var(--cizgi);border-radius:1
 </section>
 </main></div>
 
+<div id="toast"></div>
 <div id="pencere"><div class="kutu"><div id="pIcerik"></div><button class="btn ana" style="width:100%;margin-top:12px" id="pKapat">Tamam</button></div></div>
 
 <script>
@@ -128,7 +144,7 @@ $("#girisForm").onsubmit=async e=>{e.preventDefault();$("#gHata").textContent=""
 function git(ad,gecmis){SEKME=ad;document.querySelectorAll(".bolum").forEach(b=>b.classList.toggle("acik",b.id==="b-"+ad));
  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("secili",b.dataset.git===ad));
  if(gecmis!==false) history.pushState({s:ad},"","#"+ad);
- if(ad==="canli") canliBasla(); else canliDur(); if(ad==="ana") ozetYukle(); nabiz();}
+ if(ad==="canli") canliBasla(); else canliDur(); if(ad==="ana"){ozetYukle();mesajlarYukle();} if(ad==="hesap") bilDurumYaz(); nabiz();}
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>git(b.dataset.git));
 
 // Geri tuşu: panelden çıkılmasın
@@ -146,7 +162,8 @@ async function basla(){
  $("#navCanli").style.display=BEN.dev?"":"none";
  const s=new Date().getHours(); $("#selam").textContent=(s<11?"Günaydın":s<18?"İyi günler":"İyi akşamlar")+", "+BEN.ad;
  $("#tarih").textContent=new Date().toLocaleDateString("tr-TR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
- korumaKur();git("ana",false);setInterval(nabiz,60000);setInterval(()=>{if(SEKME==="ana")ozetYukle();},120000);iphoneTarif();}
+ korumaKur();git("ana",false);setInterval(nabiz,60000);mesajlarYukle();setInterval(()=>{if(!document.hidden)mesajlarYukle();},15000);
+ bilDurumYaz();aboneligim().then(s=>{if(PUSH_VAR&&BEN.lux&&!s&&Notification.permission==="default")$("#bilBant").style.display="flex";}).catch(()=>{});setInterval(()=>{if(SEKME==="ana")ozetYukle();},120000);iphoneTarif();}
 
 async function ozetYukle(){try{const o=await api("/api/ozet");const L=o.luxury,B=o.buyukdunya;
  $("#luxSay").innerHTML=L.hata?'<div class="sayi gen"><span>'+ka(L.hata)+'</span></div>':
@@ -164,9 +181,53 @@ async function ozetYukle(){try{const o=await api("/api/ozet");const L=o.luxury,B
  $("#bdSon").innerHTML=(B.son_talepler&&B.son_talepler.length)?'<b>Son talepler</b><ul>'+B.son_talepler.map(t=>'<li>'+ka(t.ad_soyad)+(t.kisrak_bilgisi?' — '+ka(String(t.kisrak_bilgisi).slice(0,40)):'')+'</li>').join("")+'</ul>':'';
 }catch(e){}}
 
-document.querySelectorAll("[data-gir]").forEach(b=>b.onclick=async()=>{const w=window.open("about:blank","_blank");b.disabled=true;
+// Luxury mesajları (Güven Bey'e gelen, okunmamış) — 15 sn'de bir; yeni gelince uyarı + ses + titreşim
+let SON_MSJ=null;
+async function mesajlarYukle(){try{const d=await api("/api/mesajlar");const k=$("#luxMsj");
+ if(!d.var){k.style.display="none";return;}
+ const l=d.liste||[];k.style.display="block";
+ k.innerHTML='<h4>💬 Mesajlar '+(l.length?'<span class="rozet">'+l.length+' okunmadı</span>':'<span class="not">· okunmamış mesaj yok</span>')+'</h4>'+
+  l.slice(0,5).map(m=>'<div class="m"><small>'+ka(m.kimden||"")+' · '+zamanTr(m.tarih)+'</small><br>'+ka(m.mesaj)+'</div>').join("")+
+  (l.length?'<button class="btn ana" style="width:100%;margin-top:4px" data-gir="luxury">💬 Luxury’de aç ve cevapla</button>':'');
+ k.querySelectorAll("[data-gir]").forEach(girBagla);
+ const enYeni=l.length?l[0].id:0;
+ if(SON_MSJ!==null&&enYeni>SON_MSJ){const m=l[0];uyar("💬 <b>"+ka(m.kimden||"Luxury")+"</b><br>"+ka(String(m.mesaj).slice(0,140)));}
+ SON_MSJ=Math.max(SON_MSJ||0,enYeni);}catch(e){}}
+function zamanTr(t){try{return new Date(String(t).replace(" ","T")+"Z").toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}catch(e){return t||"";}}
+function uyar(h){const t=$("#toast");t.innerHTML=h+'<div class="not" style="color:#cfc5a8;margin-top:4px">Dokunun → Luxury paneli</div>';t.style.display="block";
+ t.onclick=()=>{t.style.display="none";location.href="/git/luxury";};clearTimeout(uyar.z);uyar.z=setTimeout(()=>t.style.display="none",12000);
+ try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){}
+ try{const a=new (window.AudioContext||window.webkitAudioContext)();[660,880].forEach((f,i)=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=f;o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(.25,a.currentTime+i*.18);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+i*.18+.16);o.start(a.currentTime+i*.18);o.stop(a.currentTime+i*.18+.17);});}catch(e){}}
+
+// Telefon bildirimleri (Web Push)
+const PUSH_VAR=("serviceWorker" in navigator)&&("PushManager" in window)&&("Notification" in window);
+const IOS=/iPhone|iPad/.test(navigator.userAgent), EKLI=navigator.standalone||matchMedia("(display-mode: standalone)").matches;
+function b64Bayt(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";const h=atob(s);return Uint8Array.from(h,c=>c.charCodeAt(0));}
+async function aboneligim(){if(!PUSH_VAR)return null;const r=await navigator.serviceWorker.getRegistration("/");return r?await r.pushManager.getSubscription():null;}
+async function bilDurumYaz(){const d=$("#bilDurum"),ac=$("#bilAc"),dn=$("#bilDene"),kp=$("#bilKapat");
+ if(!PUSH_VAR){d.textContent=IOS&&!EKLI?"Bildirim için önce paneli ana ekrana ekleyin (aşağıda tarif var), sonra ana ekrandaki Şahlı Grup simgesinden açın.":"Bu tarayıcı telefon bildirimini desteklemiyor.";ac.style.display="none";dn.style.display="none";kp.style.display="none";return;}
+ const s=await aboneligim();
+ if(s&&Notification.permission==="granted"){d.innerHTML="✅ Bu cihazda bildirimler <b>açık</b>.";ac.style.display="none";dn.style.display="";kp.style.display="";}
+ else if(Notification.permission==="denied"){d.textContent="Bildirim izni bu cihazda kapatılmış. Telefon Ayarları › Bildirimler › Şahlı Grup'tan açabilirsiniz.";ac.style.display="none";dn.style.display="none";kp.style.display="none";}
+ else{d.textContent="Bu cihazda bildirimler kapalı.";ac.style.display="";dn.style.display="none";kp.style.display="none";}}
+async function bilAc(){try{
+ if(!PUSH_VAR){pencere("<p>"+ka($("#bilDurum").textContent)+"</p>");return;}
+ const izin=await Notification.requestPermission(); if(izin!=="granted"){pencere("<p>İzin verilmedi. Tekrar denemek için telefon ayarlarından bildirime izin verin.</p>");bilDurumYaz();return;}
+ const reg=await navigator.serviceWorker.register("/sw.js",{scope:"/"}); await navigator.serviceWorker.ready;
+ const {anahtar}=await api("/api/push-anahtar"); if(!anahtar) throw new Error("Bildirim anahtarı kurulmamış");
+ let s=await reg.pushManager.getSubscription(); if(!s) s=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64Bayt(anahtar)});
+ await api("/api/push-abone",s.toJSON()); $("#bilBant").style.display="none"; BEN.abone=(BEN.abone||0)+1;
+ pencere("<p>✅ Bildirimler açıldı. Luxury'de size mesaj gelince telefonunuza düşecek.</p>"); bilDurumYaz();
+}catch(e){if(e.message!=="oturum")pencere("<p>Bildirim açılamadı: "+ka(e.message)+"</p>");}}
+$("#bilAc").onclick=bilAc; $("#bilBantAc").onclick=bilAc;
+$("#bilDene").onclick=async()=>{try{const r=await api("/api/push-dene",{});pencere(r.ok?"<p>📨 Deneme bildirimi gönderildi, birkaç saniye içinde gelmeli.</p>":"<p>Gönderilemedi.</p>");}catch(e){}};
+$("#bilKapat").onclick=async()=>{const s=await aboneligim();if(s){await api("/api/push-sil",{endpoint:s.endpoint}).catch(()=>{});await s.unsubscribe().catch(()=>{});}bilDurumYaz();};
+
+function girBagla(b){b.onclick=async()=>{const w=window.open("about:blank","_blank");b.disabled=true;
  try{const j=await api("/api/gir",{hedef:b.dataset.gir}); if(w) w.location=j.adres; else location.href=j.adres;}
- catch(e){if(w)w.close(); if(e.message!=="oturum") pencere("<p>"+ka(e.message)+"</p>");} b.disabled=false;});
+ catch(e){if(w)w.close(); if(e.message!=="oturum") pencere("<p>"+ka(e.message)+"</p>");} b.disabled=false;};}
+document.querySelectorAll("[data-gir]").forEach(girBagla);
+
 
 $("#hKaydet").onclick=async()=>{$("#hHata").textContent="";try{await api("/api/sifre",{eski:$("#hEski").value,yeni:$("#hYeni").value});
  $("#hEski").value=$("#hYeni").value="";pencere("<p>✅ Şifreniz değişti.</p>");}catch(e){$("#hHata").textContent=e.message;}};

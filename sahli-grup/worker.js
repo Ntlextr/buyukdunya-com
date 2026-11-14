@@ -15,8 +15,9 @@
 // =====================================================================
 import { PANEL_HTML } from "./panel.js";
 import { IKON } from "./ikonlar.js";
+import { SW_JS, vapidAcik, pushGonder } from "./push.js";
 
-const SURUM = "v1.0";
+const SURUM = "v1.1";
 const MERKEZ_KOD = "sahli";
 const OTURUM_GUN = 30, BOSTA_GUN = 14;
 const ISLETMELER = {
@@ -56,6 +57,8 @@ async function semaHazirla(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS hareket (id INTEGER PRIMARY KEY AUTOINCREMENT, zaman INTEGER NOT NULL, kullanici_id INTEGER, tur TEXT, sekme TEXT, detay TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS giris_kilidi (anahtar TEXT PRIMARY KEY, sayi INTEGER, bitis INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS merkez_bilet (n TEXT PRIMARY KEY, zaman INTEGER)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS abone (id INTEGER PRIMARY KEY AUTOINCREMENT, kullanici_id INTEGER NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, cihaz TEXT, olusturma INTEGER, son_gonderim INTEGER, son_durum INTEGER)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS kanca (anahtar TEXT PRIMARY KEY, zaman INTEGER)"),
   ]);
   SEMA = true;
 }
@@ -138,6 +141,41 @@ async function merkezBiletDogrula(env, bilet) {
   return y;
 }
 
+// Kişinin bütün telefonlarına bildirim (ölmüş abonelik silinir)
+async function kisiyeBildir(env, kid, veri) {
+  if (!env.VAPID_OZEL) return { gonderilen: 0, hata: "VAPID yok" };
+  const { results } = await env.DB.prepare("SELECT * FROM abone WHERE kullanici_id=?").bind(kid).all();
+  let n = 0;
+  for (const a of results || []) {
+    try {
+      const r = await pushGonder(env, a, veri);
+      if (r.sil) await env.DB.prepare("DELETE FROM abone WHERE id=?").bind(a.id).run();
+      else { await env.DB.prepare("UPDATE abone SET son_gonderim=?, son_durum=? WHERE id=?").bind(Date.now(), r.durum, a.id).run(); if (r.durum < 300) n++; }
+    } catch (e) { await env.DB.prepare("UPDATE abone SET son_durum=0 WHERE id=?").bind(a.id).run(); }
+  }
+  return { gonderilen: n, abone: (results || []).length };
+}
+
+// Luxury'de kişiye gelen okunmamış dahili mesajlar (salt okunur)
+async function luxMesajlar(env, luxKadi) {
+  if (!luxKadi) return { var: false, liste: [] };
+  try {
+    const u = await env.LUX_DB.prepare("SELECT id FROM kullanicilar WHERE kullanici_adi=? COLLATE NOCASE").bind(luxKadi).first();
+    if (!u) return { var: false, liste: [] };
+    const { results } = await env.LUX_DB.prepare("SELECT m.id, m.mesaj, m.tarih, k.ad AS kimden FROM panel_mesajlari m LEFT JOIN kullanicilar k ON k.id=m.gonderen_id WHERE m.alici_id=? AND m.okundu=0 ORDER BY m.id DESC LIMIT 20").bind(u.id).all();
+    return { var: true, liste: results || [] };
+  } catch (e) { return { var: true, liste: [], hata: "Mesajlar okunamadı" }; }
+}
+
+async function siteyeBilet(env, k, hedef) {
+  const is = ISLETMELER[hedef]; if (!is) return { hata: "Bilinmeyen işletme" };
+  const hesap = k[is.kolon];
+  if (!hesap) return { hata: k.dev ? "Developer olarak bu panele Merkez'den girin." : "Bu panelde hesabınız tanımlı değil." };
+  if (!env[is.anahtar]) return { hata: "Bağlantı anahtarı kurulmamış" };
+  const b = await biletUret(env[is.anahtar], { t: "giris", f: hedef, k: "sahli", u: hesap, z: Math.floor(Date.now() / 1000) + 120, n: b64u(crypto.getRandomValues(new Uint8Array(18))) });
+  return { adres: is.giris + encodeURIComponent(b), ad: is.ad };
+}
+
 function ikonCevap(ad) {
   const b = IKON[ad]; if (!b) return new Response("yok", { status: 404 });
   const s = atob(b), a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
@@ -157,6 +195,37 @@ export default {
       icons: [{ src: "/ikon-192.png", sizes: "192x192", type: "image/png" }, { src: "/ikon-512.png", sizes: "512x512", type: "image/png" }, { src: "/ikon-m512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }],
     }), { headers: { "Content-Type": "application/manifest+json; charset=utf-8" } });
     const ik = yol.match(/^\/ikon-(180|192|512|m512)\.png$/); if (ik) return ikonCevap(ik[1]);
+    if (yol === "/sw.js") return new Response(SW_JS, { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/" } });
+
+    // Sitelerden gelen imzalı haber (Luxury: Güven'e dahili mesaj) → telefon bildirimi
+    if (yol === "/kanca/mesaj" && req.method === "POST") {
+      const govde = await req.text();
+      let y; try { y = JSON.parse(govde); } catch (e) { return json({ hata: "geçersiz" }, 400); }
+      const is = ISLETMELER[y.f];
+      if (!is || !env[is.anahtar] || !esit(req.headers.get("x-imza") || "", await hmac(env[is.anahtar], govde))) return json({ hata: "imza" }, 403);
+      const sn = Math.floor(Date.now() / 1000);
+      if (!(Math.abs(sn - Number(y.z)) < 300)) return json({ hata: "süre" }, 403);
+      await semaHazirla(env);
+      const ka = y.f + ":" + (y.id || "") + ":" + y.z;
+      await env.DB.prepare("DELETE FROM kanca WHERE zaman < ?").bind(sn - 86400).run();
+      try { await env.DB.prepare("INSERT INTO kanca (anahtar, zaman) VALUES (?,?)").bind(ka, sn).run(); } catch (e) { return json({ ok: true, tekrar: true }); }
+      const u = await env.DB.prepare("SELECT id FROM kullanici WHERE " + is.kolon + "=? COLLATE NOCASE AND aktif=1").bind(String(y.u || "")).first();
+      if (!u) return json({ ok: true, kisi: false });
+      const kim = String(y.kimden || "").slice(0, 60), metin = String(y.mesaj || "").slice(0, 300);
+      const r = await kisiyeBildir(env, u.id, { baslik: "💬 " + (y.f === "luxury" ? "Luxury" : is.ad) + (kim ? " · " + kim : ""), metin, url: "/git/" + y.f, etiket: y.f + "-mesaj-" + (y.id || sn) });
+      await hareketYaz(env, { id: u.id }, "islem", "", is.ad + " mesajı geldi" + (kim ? " (" + kim + ")" : "") + " · bildirim " + r.gonderilen);
+      return json({ ok: true, ...r });
+    }
+    // Bildirime / mesaja dokununca: o paneli kişinin kendi hesabıyla aç
+    const git = yol.match(/^\/git\/(luxury|buyukdunya)$/);
+    if (git) {
+      const k = await kimlik(req, env);
+      if (!k) return new Response(null, { status: 302, headers: { Location: "/" } });
+      const b = await siteyeBilet(env, k, git[1]);
+      if (b.hata) return new Response(null, { status: 302, headers: { Location: "/" } });
+      await hareketYaz(env, k, "islem", "", b.ad + " paneline girdi");
+      return new Response(null, { status: 302, headers: { Location: b.adres, "Cache-Control": "no-store" } });
+    }
 
     // Giriş
     if (yol === "/giris" && req.method === "POST") {
@@ -194,17 +263,37 @@ export default {
       const k = await kimlik(req, env);
       if (!k) return json({ hata: "Oturum yok" }, 401);
       const sekmeBas = (req.headers.get("x-panel-sekme") || "").slice(0, 30);
-      if (yol === "/api/ben") return json({ id: k.id, ad: k.ad, kadi: k.kadi, dev: k.dev, yol: k.yol, surum: SURUM, lux: !!k.lux_kadi, bd: !!k.bd_kadi });
+      if (yol === "/api/ben") {
+        const ab = await env.DB.prepare("SELECT COUNT(*) n FROM abone WHERE kullanici_id=?").bind(k.id).first();
+        return json({ id: k.id, ad: k.ad, kadi: k.kadi, dev: k.dev, yol: k.yol, surum: SURUM, lux: !!k.lux_kadi, bd: !!k.bd_kadi, abone: ab ? ab.n : 0 });
+      }
       if (yol === "/api/ozet") return json(await ozetler(env));
       if (yol === "/api/gir" && req.method === "POST") {
         let g = {}; try { g = await req.json(); } catch (e) {}
-        const is = ISLETMELER[g.hedef]; if (!is) return json({ hata: "Bilinmeyen işletme" }, 400);
-        const hesap = k[is.kolon];
-        if (!hesap) return json({ hata: k.dev ? "Developer olarak bu panele Merkez'den girin." : "Bu panelde hesabınız tanımlı değil." }, 400);
-        if (!env[is.anahtar]) return json({ hata: "Bağlantı anahtarı kurulmamış" }, 500);
-        const b = await biletUret(env[is.anahtar], { t: "giris", f: g.hedef, k: "sahli", u: hesap, z: Math.floor(Date.now() / 1000) + 120, n: b64u(crypto.getRandomValues(new Uint8Array(18))) });
-        await hareketYaz(env, k, "islem", sekmeBas, is.ad + " paneline girdi");
-        return json({ ok: true, adres: is.giris + encodeURIComponent(b) });
+        const b = await siteyeBilet(env, k, g.hedef);
+        if (b.hata) return json({ hata: b.hata }, 400);
+        await hareketYaz(env, k, "islem", sekmeBas, b.ad + " paneline girdi");
+        return json({ ok: true, adres: b.adres });
+      }
+      if (yol === "/api/mesajlar") return json(await luxMesajlar(env, k.lux_kadi));
+      if (yol === "/api/push-anahtar") return json({ anahtar: env.VAPID_OZEL ? vapidAcik(env) : null });
+      if (yol === "/api/push-abone" && req.method === "POST") {
+        let g = {}; try { g = await req.json(); } catch (e) {}
+        const ep = String(g.endpoint || ""), p = g.keys || {};
+        if (!/^https:\/\/[^\s]{10,900}$/.test(ep) || !p.p256dh || !p.auth) return json({ hata: "Abonelik bilgisi eksik" }, 400);
+        await env.DB.prepare("INSERT INTO abone (kullanici_id, endpoint, p256dh, auth, cihaz, olusturma) VALUES (?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET kullanici_id=excluded.kullanici_id, p256dh=excluded.p256dh, auth=excluded.auth, cihaz=excluded.cihaz")
+          .bind(k.id, ep, String(p.p256dh).slice(0, 200), String(p.auth).slice(0, 100), cihazAdi(req.headers.get("user-agent"), req.cf), Date.now()).run();
+        await hareketYaz(env, k, "islem", "hesap", "Telefon bildirimlerini açtı");
+        return json({ ok: true });
+      }
+      if (yol === "/api/push-sil" && req.method === "POST") {
+        let g = {}; try { g = await req.json(); } catch (e) {}
+        await env.DB.prepare("DELETE FROM abone WHERE kullanici_id=? AND endpoint=?").bind(k.id, String(g.endpoint || "")).run();
+        return json({ ok: true });
+      }
+      if (yol === "/api/push-dene" && req.method === "POST") {
+        const r = await kisiyeBildir(env, k.id, { baslik: "🔔 Şahlı Grup Panel", metin: "Deneme bildirimi — bildirimler çalışıyor.", url: "/", etiket: "deneme" });
+        return json({ ok: r.gonderilen > 0, ...r });
       }
       if (yol === "/api/nabiz" && req.method === "POST") {
         let g = {}; try { g = await req.json(); } catch (e) {}
