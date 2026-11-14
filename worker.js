@@ -559,7 +559,7 @@ function raporYerHtml(bolumler, yer, pdfUrl) {
 const SAHLI_REHBER = `Sen "Şahlı AI"sın: buyukdunya.com yönetim panelinin yardımcısısın. Şahlı Harası'nın damızlık aygırı BÜYÜKDÜNYA'nın tanıtım sitesini yöneten kişilere (sahibi Güven Şahlı ve Serdar) panelin nasıl kullanılacağını anlatır, at ve rapor hakkındaki sorularını aşağıdaki bilgilere dayanarak cevaplarsın.
 KURALLAR: Her zaman Türkçe, kısa, net ve adım adım anlat ("Sol menüden X'e dokun, şunu yaz, Kaydet'e bas" gibi). Bilmediğin ya da aşağıda olmayan bilgiyi uydurma; "Bu bilgi bende yok" de. Panelde bir şeyi senin yerine değiştiremezsin, sadece nasıl yapılacağını anlatırsın. Teknik terim kullanma. Fiyat/aşım ücreti sorulursa sitede fiyat yazılmadığını, WhatsApp'tan konuşulduğunu söyle.
 
-PANEL KULLANIMI (adres: buyukdunya.com/panel; herkes kendi kullanıcı adı + şifresiyle girer — Güven Şahlı: guven, Serdar: serdar; eski ortak şifre sadece acil durum girişidir, kullanıcı adı boş bırakılır. Şifre 👤 Hesabım'dan değiştirilir. Serdar Merkez Panel'den şifresiz de girebilir. 👀 Canlı İzle bölümünü sadece Serdar görür. Telefonun geri tuşu bir önceki bölüme döner, panelden çıkarmaz; çıkmak için üstteki Çıkış):
+PANEL KULLANIMI (adres: buyukdunya.com/panel; herkes kendi kullanıcı adı + şifresiyle girer — Güven Şahlı: guven, Serdar: serdar; eski ortak şifre sadece acil durum girişidir, kullanıcı adı boş bırakılır. Şifre 👤 Hesabım'dan değiştirilir. Serdar Merkez Panel'den şifresiz de girebilir. 👀 Canlı İzle bölümünü sadece Serdar görür. Telefonun geri tuşu bir önceki bölüme döner, panelden çıkarmaz; çıkmak için üstteki Çıkış. Telefonun ana ekranına logolu uygulama gibi eklenir — iPhone: Safari'de panel açıkken alttaki Paylaş → Ana Ekrana Ekle; Android: Chrome ⋮ → Ana ekrana ekle; ilk açılışta bir kez giriş yapılır; anlatım 👤 Hesabım'da da var. Galeride her resmin altında 🎯 Odağı ayarla var: resim sitede kırpılırken dokunulan yer ortada görünür; yeni yüklenen fotoğraflarda atın yerini yapay zekâ kendisi bulur):
 Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 1) 🏆 Yarış: "Yarış Sayaçları" (Toplam Yarış, Birincilik, Grup Koşu Birinciliği, KV Birinciliği) sitenin üstündeki koyu şeritte görünen rakamlardır; değiştirip Kaydet'e basılır. "Yarış Geçmişi Ekle": Tarih, Hipodrom, Mesafe, Sonuç, Açıklama yazılıp Ekle'ye basılır; listede her kaydın Sil düğmesi vardır. Bir kayıt düzeltilecekse silinip doğrusu eklenir.
 2) 📝 Metinler: Ana sayfadaki büyük fotoğrafın üstündeki küçük üst yazı ve tanıtım cümlesi; Hakkında bölümünün kalın başlığı, künye kutusu (her satır ayrı satıra yazılır) ve uzun açıklama metni. Değiştirip Kaydet.
@@ -605,6 +605,14 @@ const PANEL_HTML = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Büyükdünya - Yönetim Paneli</title>
+<link rel="manifest" href="/panel/manifest.json">
+<link rel="apple-touch-icon" href="/panel-ikon/ikon-180.png">
+<link rel="icon" type="image/png" href="/panel-ikon/ikon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Büyükdünya">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#47952a">
 <style>
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; background:#f2f2f2; margin:0; padding:0; color:#262626; }
@@ -941,6 +949,9 @@ const PANEL_HTML = `<!DOCTYPE html>
     <div class="card" data-sec="hesap">
       <h2>👤 Hesabım</h2>
       <div id="hesap-bilgi" class="ipucu"></div>
+      <div class="yardim" style="margin:8px 0 12px">📲 <b>Telefonun ana ekranına ekle</b> (logolu, uygulama gibi açılır)<br>
+        <b>iPhone:</b> Safari'de bu sayfayı aç → alttaki <b>Paylaş</b> (kare ve yukarı ok) → <b>Ana Ekrana Ekle</b> → Ekle. İlk açılışta bir kez kullanıcı adı ve şifreyle giriş yapılır.<br>
+        <b>Android:</b> Chrome'da sağ üstteki ⋮ → <b>Ana ekrana ekle</b>.</div>
       <div id="hesap-sifre-kutu">
         <label>Eski şifre</label><input type="password" id="h-eski" autocomplete="current-password">
         <label>Yeni şifre (en az 6 karakter)</label><input type="password" id="h-yeni" autocomplete="new-password">
@@ -1745,6 +1756,18 @@ const ANA_ISLEYICI = {
         status: 302,
         headers: { Location: "/panel", "Set-Cookie": "oturum=; Path=/; Max-Age=0" },
       });
+    }
+    // Ana ekrana ekleme (iPhone / Android): uygulama gibi açılır, logolu ikon
+    if (path === "/panel/manifest.json") {
+      return new Response(JSON.stringify({
+        name: "Büyükdünya Yönetim Paneli", short_name: "Büyükdünya", start_url: "/panel", scope: "/", display: "standalone",
+        background_color: "#0d1b3d", theme_color: "#47952a", lang: "tr",
+        icons: [
+          { src: "/panel-ikon/ikon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/panel-ikon/ikon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/panel-ikon/ikon-maskeli-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
+      }), { headers: { "Content-Type": "application/manifest+json; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
     }
     if (path === "/panel") {
       return new Response(PANEL_HTML, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
