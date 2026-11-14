@@ -169,10 +169,13 @@ function islemAdi(method, path) {
 
 // Merkez bileti doğrula (tek kullanımlık, en çok 5 dk)
 async function merkezBiletDogrula(env, bilet) {
-  if (!env.MERKEZ_ANAHTAR || String(env.MERKEZ_ANAHTAR).length < 32) return { hata: "Merkez bağlantısı kurulmamış" };
   const [govde, im] = String(bilet || "").split(".");
   if (!govde || !im || govde.length > 4000) return { hata: "Bilet geçersiz" };
-  if (!bdEsit(im, await hmacB64u(env.MERKEZ_ANAHTAR, govde))) return { hata: "Bilet geçersiz" };
+  // Önce Merkez (Serdar), olmazsa Şahlı Grup Panel (Güven Bey) anahtarı
+  let kaynak = null;
+  if (env.MERKEZ_ANAHTAR && String(env.MERKEZ_ANAHTAR).length >= 32 && bdEsit(im, await hmacB64u(env.MERKEZ_ANAHTAR, govde))) kaynak = "merkez";
+  else if (env.SAHLI_ANAHTAR && String(env.SAHLI_ANAHTAR).length >= 32 && bdEsit(im, await hmacB64u(env.SAHLI_ANAHTAR, govde))) kaynak = "sahli";
+  if (!kaynak) return { hata: "Bilet geçersiz" };
   let y; try { y = JSON.parse(new TextDecoder().decode(bdB64uBayt(govde))); } catch (e) { return { hata: "Bilet geçersiz" }; }
   const sn = Math.floor(Date.now() / 1000);
   if (y.t !== "giris") return { hata: "Bilet türü yanlış" };
@@ -183,6 +186,7 @@ async function merkezBiletDogrula(env, bilet) {
   await env.DB.prepare("DELETE FROM merkez_bilet WHERE zaman < ?").bind(sn - 86400).run();
   try { await env.DB.prepare("INSERT INTO merkez_bilet (n, zaman) VALUES (?, ?)").bind(y.n, sn).run(); }
   catch (e) { return { hata: "Bu bilet daha önce kullanıldı" }; }
+  y.kaynak = kaynak;
   return y;
 }
 // --- merkezBiletDogrula() sonu ---
@@ -1787,9 +1791,18 @@ const ANA_ISLEYICI = {
     if (path === "/merkez-giris" && request.method === "GET") {
       const y = await merkezBiletDogrula(env, url.searchParams.get("b"));
       if (y.hata) return htmlCevap("Merkez girişi olmadı", y.hata, 403);
-      const u = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE rol='gelistirici' AND aktif=1 ORDER BY (kadi='serdar') DESC, id LIMIT 1").first();
-      const cerez = await oturumAc(env, request, u ? u.id : 0, "merkez");
-      await hareketYaz(env, { id: u ? u.id : 0, oturum: await sha256Hex(cerez.split(";")[0].slice(7)) }, "giris", "", "Merkez'den giriş");
+      let u, yolAd = "merkez";
+      if (y.kaynak === "sahli") {
+        // Şahlı Grup Panel: kişinin KENDİ hesabı; Developer hesabıyla ASLA
+        if (y.k !== "sahli" || !y.u) return htmlCevap("Giriş olmadı", "Bilet geçersiz", 403);
+        u = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE kadi=? COLLATE NOCASE AND aktif=1 AND rol<>'gelistirici' LIMIT 1").bind(String(y.u)).first();
+        if (!u) return htmlCevap("Giriş olmadı", "Bu panelde hesabınız yok", 403);
+        yolAd = "sahli";
+      } else {
+        u = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE rol='gelistirici' AND aktif=1 ORDER BY (kadi='serdar') DESC, id LIMIT 1").first();
+      }
+      const cerez = await oturumAc(env, request, u ? u.id : 0, yolAd);
+      await hareketYaz(env, { id: u ? u.id : 0, oturum: await sha256Hex(cerez.split(";")[0].slice(7)) }, "giris", "", yolAd === "sahli" ? "Şahlı Grup Panel'den giriş" : "Merkez'den giriş");
       return new Response(null, { status: 302, headers: { Location: "/panel", "Set-Cookie": cerez, "Cache-Control": "no-store" } });
     }
     if (path === "/panel/logout") {
