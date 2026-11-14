@@ -17,7 +17,7 @@ import { PANEL_HTML } from "./panel.js";
 import { IKON } from "./ikonlar.js";
 import { SW_JS, vapidAcik, pushGonder } from "./push.js";
 
-const SURUM = "v1.1";
+const SURUM = "v1.2";
 const MERKEZ_KOD = "sahli";
 const OTURUM_GUN = 30, BOSTA_GUN = 14;
 const ISLETMELER = {
@@ -169,10 +169,12 @@ async function luxMesajlar(env, luxKadi) {
 
 async function siteyeBilet(env, k, hedef) {
   const is = ISLETMELER[hedef]; if (!is) return { hata: "Bilinmeyen işletme" };
+  // Developer (Serdar): sitede Developer hesabıyla girer (k:"sahli-dev"); diğerleri kendi hesabıyla
   const hesap = k[is.kolon];
-  if (!hesap) return { hata: k.dev ? "Developer olarak bu panele Merkez'den girin." : "Bu panelde hesabınız tanımlı değil." };
+  if (!hesap && !k.dev) return { hata: "Bu panelde hesabınız tanımlı değil." };
   if (!env[is.anahtar]) return { hata: "Bağlantı anahtarı kurulmamış" };
-  const b = await biletUret(env[is.anahtar], { t: "giris", f: hedef, k: "sahli", u: hesap, z: Math.floor(Date.now() / 1000) + 120, n: b64u(crypto.getRandomValues(new Uint8Array(18))) });
+  const yuk = k.dev ? { t: "giris", f: hedef, k: "sahli-dev" } : { t: "giris", f: hedef, k: "sahli", u: hesap };
+  const b = await biletUret(env[is.anahtar], { ...yuk, z: Math.floor(Date.now() / 1000) + 120, n: b64u(crypto.getRandomValues(new Uint8Array(18))) });
   return { adres: is.giris + encodeURIComponent(b), ad: is.ad };
 }
 

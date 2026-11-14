@@ -1792,7 +1792,10 @@ const ANA_ISLEYICI = {
       const y = await merkezBiletDogrula(env, url.searchParams.get("b"));
       if (y.hata) return htmlCevap("Merkez girişi olmadı", y.hata, 403);
       let u, yolAd = "merkez";
-      if (y.kaynak === "sahli") {
+      if (y.kaynak === "sahli" && y.k === "sahli-dev") {
+        // Şahlı Grup Panel'deki Developer (Serdar) → Developer hesabı (Merkez girişi gibi)
+        u = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE rol='gelistirici' AND aktif=1 ORDER BY (kadi='serdar') DESC, id LIMIT 1").first();
+      } else if (y.kaynak === "sahli") {
         // Şahlı Grup Panel: kişinin KENDİ hesabı; Developer hesabıyla ASLA
         if (y.k !== "sahli" || !y.u) return htmlCevap("Giriş olmadı", "Bilet geçersiz", 403);
         u = await env.DB.prepare("SELECT id FROM panel_kullanici WHERE kadi=? COLLATE NOCASE AND aktif=1 AND rol<>'gelistirici' LIMIT 1").bind(String(y.u)).first();

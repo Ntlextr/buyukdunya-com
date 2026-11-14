@@ -9,7 +9,7 @@ Güven Şahlı'nın bütün işletmeleri tek panelde: Luxury Beauty Center, Şah
 - **Kullanıcılar** (tablo `kullanici`): `serdar` (gelistirici) ve `guven` (yonetici). Şifre özetleri Luxury'deki hesaplarından kopyalandı (aynı şifre). `lux_kadi` / `bd_kadi` = kişinin o sitedeki kullanıcı adı.
 - **Panele gir:** `/api/gir` → o sitenin anahtarıyla imzalı 2 dk'lık tek kullanımlık bilet `{t:"giris", f:"luxury"|"buyukdunya", k:"sahli", u:<kullanıcı adı>}` → sitenin `/merkez-giris?b=`. Site, kişinin KENDİ hesabını açar; Developer hesabına bu yoldan ASLA girilmez (siteler de denetler). Serdar sitelere Merkez'den girer.
 - **Özetler:** Luxury: bugünkü randevu (iptal hariç), bugün tahsilat/satış, bu ay tahsilat, açık bakiye (aktif satışlar − bunlara ait aktif tahsilatlar), görülmemiş web talebi. Büyükdünya: kısrak talepleri (7 gün / toplam), WhatsApp tıklamaları (bugün / toplam), son 3 talep. Sitelerde tablo/sütun değişirse `ozetler()` güncellenir.
-- **Developer:** 👀 Canlı İzle (kim panelde, ekran, dokunuş, işlem); Merkez'den `/merkez-giris` ile şifresiz giriş (sarı 🛟 şerit). Güven Bey Developer'ın izini görmez.
+- **Developer:** 👀 Canlı İzle; Merkez'den `/merkez-giris` ile şifresiz giriş (sarı 🛟 şerit). v1.2: "Panele gir" Developer'a da çalışır — bilet `{k:"sahli-dev"}` (kullanıcı adı yok), siteler bunu Developer hesabıyla açar (Merkez girişi gibi). Güven Bey'in oturumuna her zaman `{k:"sahli", u:<kendi kullanıcı adı>}`.
 - Geri tuşu panelden çıkarmaz; iPhone'da ilk açılışta "Ana ekrana ekle" tarifi.
 
 ## v1.1 — 15.11.2026: Luxury mesajları + telefon bildirimi
