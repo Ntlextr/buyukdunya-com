@@ -320,6 +320,21 @@ const HARA_NEDEN = ["", "gunubirlik_asim", "gebe_kalana_kadar", "dogum", "konakl
 const HARA_OLAY = ["asim", "kontrol", "dogum", "giris", "cikis", "not", "yem", "ilac", "bakim", "gezdirme", "sorun"];
 // Seyisin girebildiği günlük bakım kayıtları (seyis.yaz yeter); diğerleri hara.yaz ister
 const HARA_BAKIM = ["yem", "ilac", "bakim", "gezdirme", "sorun", "not"];
+// Seyis "Sorun var" girince Yönetici ve Hara Müdürlerine Şahlı Grup Panel üzerinden telefon bildirimi
+// (servis bağı SAHLI → sahli-grup-panel /kanca/mesaj, imza SAHLI_ANAHTAR; Şahlı'da kişi bd_kadi ile eşleşir)
+async function sahliyaSorunBildir(env, at, olayId, kim, aciklama) {
+  if (!env.SAHLI || !env.SAHLI_ANAHTAR) return { gonderilen: 0, neden: "bag-yok" };
+  const kisiler = (await env.DB.prepare("SELECT kadi FROM panel_kullanici WHERE aktif=1 AND rol IN ('yonetici','mudur')").all()).results || [];
+  let n = 0;
+  for (const k of kisiler) {
+    const govde = JSON.stringify({ f: "buyukdunya", u: k.kadi, kimden: kim, mesaj: at.ad + ": " + (aciklama || "sorun bildirildi"), id: "sorun-" + olayId, z: Math.floor(Date.now() / 1000), tur: "sorun" });
+    try {
+      const r = await env.SAHLI.fetch("https://sahli/kanca/mesaj", { method: "POST", headers: { "Content-Type": "application/json", "x-imza": await hmacB64u(env.SAHLI_ANAHTAR, govde) }, body: govde });
+      const j = await r.json().catch(() => ({})); n += j.gonderilen || 0;
+    } catch (e) {}
+  }
+  return { gonderilen: n };
+}
 function haraTarih(t) { t = String(t || "").trim().slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : ""; }
 function haraMetin(t, n) { return String(t == null ? "" : t).trim().slice(0, n || 200); }
 function haraAtTemiz(b) {
@@ -2211,7 +2226,7 @@ async function seyisKaydet() {
   const r = await fetch("/api/hara/olay", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
   const d = await r.json().catch(function () { return {}; });
   if (!r.ok) { showMsg("sy-msg", d.error || "Kaydedilemedi", false); return; }
-  showMsg("sy-msg", "✅ " + HARA_OLAY_AD[SY_TIP] + " — kaydedildi", true);
+  showMsg("sy-msg", "✅ " + HARA_OLAY_AD[SY_TIP] + " — kaydedildi" + (d.bildirim && d.bildirim.gonderilen ? " · yöneticinin telefonuna bildirim gitti" : ""), true);
   seyisYaziKapat(); await seyisYukle();
 }
 async function seyisGeriAl(id) {
@@ -2895,9 +2910,11 @@ const ANA_ISLEYICI = {
             .bind(haraMetin(b.tay_ad, 80), at.tur, "tay", tarih.slice(0, 4), haraMetin(b.tay_renk, 30), haraMetin(b.tay_baba, 80), at.ad, atId, at.sahip, at.telefon, (b.tay_cinsiyet === "erkek" ? "Erkek tay" : b.tay_cinsiyet === "disi" ? "Dişi tay" : "") + " · doğum " + tarih, tarih).run();
           tayId = t.meta.last_row_id;
         }
+        let bildirim = null;
+        if (tip === "sorun") bildirim = await sahliyaSorunBildir(env, at, r.meta.last_row_id, kim, haraMetin(b.aciklama, 200));
         if (tip === "cikis") await env.DB.prepare("UPDATE hara_at SET durum='ayrildi', cikis=? WHERE id=?").bind(tarih, atId).run();
         if (tip === "giris") await env.DB.prepare("UPDATE hara_at SET durum='harada', giris=?, cikis='' WHERE id=?").bind(tarih, atId).run();
-        return json({ ok: true, id: r.meta.last_row_id, tay_id: tayId });
+        return json({ ok: true, id: r.meta.last_row_id, tay_id: tayId, bildirim });
       }
       const haraOlayM = path.match(/^\/api\/hara\/olay\/(\d+)$/);
       if (haraOlayM && request.method === "DELETE") {

@@ -214,8 +214,9 @@ export default {
       const u = await env.DB.prepare("SELECT id FROM kullanici WHERE " + is.kolon + "=? COLLATE NOCASE AND aktif=1").bind(String(y.u || "")).first();
       if (!u) return json({ ok: true, kisi: false });
       const kim = String(y.kimden || "").slice(0, 60), metin = String(y.mesaj || "").slice(0, 300);
-      const r = await kisiyeBildir(env, u.id, { baslik: "💬 " + (y.f === "luxury" ? "Luxury" : is.ad) + (kim ? " · " + kim : ""), metin, url: "/git/" + y.f, etiket: y.f + "-mesaj-" + (y.id || sn) });
-      await hareketYaz(env, { id: u.id }, "islem", "", is.ad + " mesajı geldi" + (kim ? " (" + kim + ")" : "") + " · bildirim " + r.gonderilen);
+      const sorun = y.tur === "sorun";
+      const r = await kisiyeBildir(env, u.id, { baslik: (sorun ? "⚠️ Hara · seyis bildirdi" : "💬 " + (y.f === "luxury" ? "Luxury" : is.ad)) + (kim ? " · " + kim : ""), metin, url: "/git/" + y.f, etiket: y.f + (sorun ? "-sorun-" : "-mesaj-") + (y.id || sn) });
+      await hareketYaz(env, { id: u.id }, "islem", "", is.ad + (sorun ? " sorun bildirimi geldi" : " mesajı geldi") + (kim ? " (" + kim + ")" : "") + " · bildirim " + r.gonderilen);
       return json({ ok: true, ...r });
     }
     // Bildirime / mesaja dokununca: o paneli kişinin kendi hesabıyla aç
