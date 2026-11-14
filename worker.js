@@ -182,6 +182,12 @@ async function servePublicPage(path, env) {
 
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
   const waNo = icerik.whatsapp_no || "905324082999";
+  // Footer telif yazısı içinde "Seray Tekno Yazılım" geçiyorsa otomatik olarak
+  // seraytekno.com'a giden bir bağlantıya çevrilir (panelde elle HTML yazmaya gerek yok).
+  const footerTelifHtml = esc(icerik.footer_telif || "").replace(
+    /Seray Tekno Yaz[ıi]l[ıi]m/gi,
+    (m) => `<a href="https://seraytekno.com" target="_blank" rel="noopener" style="color:inherit; text-decoration:underline;">${m}</a>`
+  );
   const tokenMap = {
     "{{WA_NO}}": waNo,
     "{{WA_NO_DISPLAY}}": formatPhoneTR(waNo),
@@ -194,7 +200,7 @@ async function servePublicPage(path, env) {
     "{{HERO_SLIDE_5}}": icerik.hero_slide5 || "aygirlar/images/slider6.jpg",
     "{{TALEP_ACIKLAMA}}": esc(icerik.talep_aciklama || ""),
     "{{FOOTER_ACIKLAMA}}": esc(icerik.footer_aciklama || ""),
-    "{{FOOTER_TELIF}}": esc(icerik.footer_telif || ""),
+    "{{FOOTER_TELIF}}": footerTelifHtml,
   };
   for (const [token, val] of Object.entries(tokenMap)) {
     html = html.split(token).join(val);
