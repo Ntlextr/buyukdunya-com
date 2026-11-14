@@ -2116,12 +2116,26 @@ const ANA_ISLEYICI = {
     // --- Yüklenen dosyalar (R2) kendi adresimizden: /medya/... ---
     if (path.startsWith("/medya/")) {
       const key = decodeURIComponent(path.slice(7));
-      const obj = await env.ASSETS.get(key);
+      // Parça parça okuma (Range): iPhone Safari video oynatmak için şart
+      const rng = (request.headers.get("Range") || "").match(/^bytes=(\d*)-(\d*)$/);
+      let obj;
+      if (rng && (rng[1] || rng[2])) {
+        const bas = rng[1] ? { offset: Number(rng[1]), ...(rng[2] ? { length: Number(rng[2]) - Number(rng[1]) + 1 } : {}) } : { suffix: Number(rng[2]) };
+        obj = await env.ASSETS.get(key, { range: bas });
+      } else obj = await env.ASSETS.get(key);
       if (!obj) return new Response("404 Not Found", { status: 404 });
       const h = new Headers();
       obj.writeHttpMetadata(h);
       h.set("etag", obj.httpEtag);
+      h.set("Accept-Ranges", "bytes");
       h.set("Cache-Control", "public, max-age=31536000, immutable");
+      if (rng && obj.range) {
+        const off = obj.range.offset != null ? obj.range.offset : obj.size - obj.range.suffix;
+        const uz = obj.range.length != null ? obj.range.length : (obj.range.suffix != null ? obj.range.suffix : obj.size - off);
+        h.set("Content-Range", `bytes ${off}-${off + uz - 1}/${obj.size}`);
+        h.set("Content-Length", String(uz));
+        return new Response(obj.body, { status: 206, headers: h });
+      }
       return new Response(obj.body, { headers: h });
     }
 
