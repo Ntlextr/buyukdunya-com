@@ -118,7 +118,7 @@
 </head>
 <body>
 
-<a href="https://wa.me/905324082999?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="whatsapp-float" aria-label="WhatsApp" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'float-test1'})}).catch(()=>{})"
+<a href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="whatsapp-float" aria-label="WhatsApp" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'float-test1'})}).catch(()=>{})"
   <svg viewBox="0 0 32 32" width="30" height="30" fill="#ffffff"><path d="M16.004 3C9.096 3 3.5 8.596 3.5 15.504c0 2.59.766 4.998 2.08 7.018L4 29l6.676-1.75a12.42 12.42 0 0 0 5.328 1.25h.004c6.908 0 12.504-5.596 12.504-12.504S22.912 3 16.004 3zm0 22.77c-1.77 0-3.49-.47-4.996-1.36l-.358-.213-3.956 1.036 1.057-3.855-.233-.396a10.37 10.37 0 0 1-1.588-5.478c0-5.75 4.676-10.426 10.078-10.426 5.4 0 10.077 4.676 10.077 10.426 0 5.75-4.676 10.266-10.08 10.266zm5.74-7.65c-.314-.157-1.86-.918-2.148-1.023-.288-.105-.498-.157-.708.157-.21.313-.812 1.023-.995 1.233-.183.21-.366.236-.68.08-1.837-.918-3.04-1.64-4.25-3.72-.321-.552.321-.513.918-1.706.1-.21.05-.393-.052-.55-.105-.157-.708-1.706-.97-2.33-.26-.628-.524-.543-.708-.552-.183-.01-.393-.01-.602-.01-.21 0-.55.078-.838.392-.288.313-1.1 1.075-1.1 2.622 0 1.546 1.126 3.04 1.283 3.25.157.21 2.162 3.302 5.24 4.5 2.597.995 3.125.797 3.69.746.566-.052 1.86-.76 2.123-1.495.262-.734.262-1.363.183-1.495-.078-.13-.288-.21-.602-.366z"/></svg>
 </a>
 
@@ -139,11 +139,11 @@
 </header>
 
 <div class="hero">
-  <div class="hero-slide active" style="background-image:url('aygirlar/images/slider2.jpg')"></div>
-  <div class="hero-slide" style="background-image:url('aygirlar/images/slider3.jpg')"></div>
-  <div class="hero-slide" style="background-image:url('aygirlar/images/slider4.jpg')"></div>
-  <div class="hero-slide" style="background-image:url('aygirlar/images/slider5.jpg')"></div>
-  <div class="hero-slide" style="background-image:url('aygirlar/images/slider6.jpg')"></div>
+  <div class="hero-slide active" style="background-image:url('{{HERO_SLIDE_1}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_2}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_3}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_4}}')"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_5}}')"></div>
   <div class="hero-overlay"></div>
   <div class="hero-inner">
     <div class="hero-eyebrow"><!--HERO_EYEBROW_START-->Mahmudiye Beşir Kaya Harası<!--HERO_EYEBROW_END--></div>
@@ -267,13 +267,13 @@ Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
 <section id="pedigree" class="pedigree-box">
   <div class="sec-title">Pedigree</div>
   <div class="sec-line"></div>
-  <img src="pedigree2.jpg" alt="Büyükdünya Pedigree">
+  <img src="{{PEDIGREE_IMG}}" alt="Büyükdünya Pedigree">
 </section>
 
 <section id="talep" class="section-alt">
   <div class="sec-title">Talep Formu</div>
   <div class="sec-line"></div>
-  <p style="margin-bottom:18px; color:#555;">Büyükdünya için eşleşme talebinde bulunmak isterseniz aşağıdaki formu doldurun, size dönüş yapalım.</p>
+  <p style="margin-bottom:18px; color:#555;">{{TALEP_ACIKLAMA}}</p>
   <form id="talep-form" class="talep-form" onsubmit="return false;">
     <input type="text" id="t-ad" placeholder="Ad Soyad" required>
     <input type="text" id="t-telefon" placeholder="Telefon" required>
@@ -288,11 +288,11 @@ Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
   <div class="sec-title">İletişim</div>
   <div class="sec-line"></div>
   <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
-    <img src="aygirlar/images/buyuk.jpg" alt="Büyükdünya" class="iletisim-img" style="width:220px;">
+    <img src="{{ILETISIM_IMG}}" alt="Büyükdünya" class="iletisim-img" style="width:220px;">
     <div style="font-size:15px; color:#333;">
       <p style="margin-bottom:8px;"><strong>Mahmudiye Beşir Kaya Harası</strong></p>
-      <p style="margin-bottom:8px;">WhatsApp / Telefon: <a href="tel:+905324082999" style="color:#25D366; font-weight:700;">0532 408 29 99</a></p>
-      <a href="https://wa.me/905324082999?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="btn btn-primary" style="background:#25D366; display:inline-block; margin-top:6px;" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'iletisim-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
+      <p style="margin-bottom:8px;">WhatsApp / Telefon: <a href="tel:+{{WA_NO}}" style="color:#25D366; font-weight:700;">{{WA_NO_DISPLAY}}</a></p>
+      <a href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" class="btn btn-primary" style="background:#25D366; display:inline-block; margin-top:6px;" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'iletisim-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
     </div>
   </div>
 </section>
@@ -301,7 +301,7 @@ Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
   <div class="foot-wrap">
     <div class="foot-col">
       <div class="foot-logo">BÜYÜKDÜNYA</div>
-      <p>Mahmudiye Beşir Kaya Harası'nda 2026 aşım sezonunda damızlık hizmetinde olan, güçlü soy ağacına ve kanıtlanmış yarış performansına sahip bir aygır.</p>
+      <p>{{FOOTER_ACIKLAMA}}</p>
     </div>
     <div class="foot-col">
       <h4>Hızlı Bağlantılar</h4>
@@ -313,12 +313,12 @@ Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
     </div>
     <div class="foot-col">
       <h4>İletişim</h4>
-      <a href="tel:+905324082999">0532 408 29 99</a>
-      <a href="https://wa.me/905324082999?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'footer-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
+      <a href="tel:+{{WA_NO}}">{{WA_NO_DISPLAY}}</a>
+      <a href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'footer-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
       <a href="#talep" class="js-scroll">Talep Formu</a>
     </div>
   </div>
-  <div class="foot-bottom">© 2026 BÜYÜKDÜNYA — Mahmudiye Beşir Kaya Harası. Tüm hakları saklıdır.</div>
+  <div class="foot-bottom">{{FOOTER_TELIF}}</div>
 </footer>
 
 <script>

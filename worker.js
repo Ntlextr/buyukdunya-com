@@ -28,6 +28,15 @@ function esc(s) {
   }[c]));
 }
 
+// "905324082999" -> "0532 408 29 99"
+function formatPhoneTR(no) {
+  const digits = String(no || "").replace(/\D/g, "");
+  const local = digits.startsWith("90") ? digits.slice(2) : digits;
+  const withZero = "0" + local;
+  const m = withZero.match(/^(\d{4})(\d{3})(\d{2})(\d{2})$/);
+  return m ? `${m[1]} ${m[2]} ${m[3]} ${m[4]}` : withZero;
+}
+
 async function signToken(secret) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -117,8 +126,9 @@ ${row.toplam_yaris} Yarış ${row.birincilik} Birincilik </div>
 <div class="videogalerii rekorlar"> <i class="bi bi-trophy-fill"></i>${row.kv_galibiyeti} KV Birinciliği</div>`;
 }
 
-function seoAndAnalyticsTags(canonicalPath) {
+function seoAndAnalyticsTags(canonicalPath, heroImg) {
   const canonical = SITE_URL + (canonicalPath === "/index.html" ? "/" : canonicalPath);
+  const ogImg = /^https?:\/\//.test(heroImg || "") ? heroImg : `${SITE_URL}/${heroImg || "aygirlar/images/slider2.jpg"}`;
   return `
 <meta name="description" content="${esc(SEO_DESCRIPTION)}">
 <link rel="canonical" href="${canonical}">
@@ -126,7 +136,7 @@ function seoAndAnalyticsTags(canonicalPath) {
 <meta property="og:description" content="${esc(SEO_DESCRIPTION)}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${canonical}">
-<meta property="og:image" content="${SITE_URL}/aygirlar/images/slider2.jpg">
+<meta property="og:image" content="${ogImg}">
 <meta property="og:locale" content="tr_TR">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="robots" content="index, follow">
@@ -152,7 +162,28 @@ async function servePublicPage(path, env) {
   html = html.replace(/<!--HERO_TAGLINE_START-->[\s\S]*?<!--HERO_TAGLINE_END-->/, esc(icerik.hero_tagline || ""));
   html = html.replace(/<!--HAKKINDA_BASLIK_START-->[\s\S]*?<!--HAKKINDA_BASLIK_END-->/, esc(icerik.hakkinda_baslik || ""));
   html = html.replace(/<!--HAKKINDA_METIN_START-->[\s\S]*?<!--HAKKINDA_METIN_END-->/, esc(icerik.hakkinda_metin || ""));
-  html = html.replace(/<\/head>/i, seoAndAnalyticsTags(path));
+
+  // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
+  const waNo = icerik.whatsapp_no || "905324082999";
+  const tokenMap = {
+    "{{WA_NO}}": waNo,
+    "{{WA_NO_DISPLAY}}": formatPhoneTR(waNo),
+    "{{PEDIGREE_IMG}}": icerik.pedigree_img || "pedigree2.jpg",
+    "{{ILETISIM_IMG}}": icerik.iletisim_img || "aygirlar/images/buyuk.jpg",
+    "{{HERO_SLIDE_1}}": icerik.hero_slide1 || "aygirlar/images/slider2.jpg",
+    "{{HERO_SLIDE_2}}": icerik.hero_slide2 || "aygirlar/images/slider3.jpg",
+    "{{HERO_SLIDE_3}}": icerik.hero_slide3 || "aygirlar/images/slider4.jpg",
+    "{{HERO_SLIDE_4}}": icerik.hero_slide4 || "aygirlar/images/slider5.jpg",
+    "{{HERO_SLIDE_5}}": icerik.hero_slide5 || "aygirlar/images/slider6.jpg",
+    "{{TALEP_ACIKLAMA}}": esc(icerik.talep_aciklama || ""),
+    "{{FOOTER_ACIKLAMA}}": esc(icerik.footer_aciklama || ""),
+    "{{FOOTER_TELIF}}": esc(icerik.footer_telif || ""),
+  };
+  for (const [token, val] of Object.entries(tokenMap)) {
+    html = html.split(token).join(val);
+  }
+
+  html = html.replace(/<\/head>/i, seoAndAnalyticsTags(path, icerik.hero_slide1));
 
   const headers = new Headers();
   headers.set("Content-Type", "text/html; charset=utf-8");
@@ -245,6 +276,42 @@ const PANEL_HTML = `<!DOCTYPE html>
       <textarea id="si-hmetin"></textarea>
       <button onclick="saveSiteIcerik()">Kaydet</button>
       <div id="site-icerik-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Site Ayarları (WhatsApp, Footer, Görseller)</h2>
+      <label>WhatsApp / Telefon numarası</label>
+      <input type="text" id="sa-wano" placeholder="05XX XXX XX XX">
+      <label>Talep Formu üstündeki açıklama</label>
+      <textarea id="sa-talep"></textarea>
+      <label>Footer açıklama paragrafı</label>
+      <textarea id="sa-faciklama"></textarea>
+      <label>Footer telif (copyright) yazısı</label>
+      <input type="text" id="sa-ftelif">
+
+      <label>Pedigree görseli</label>
+      <div id="sa-pedigree-prev"></div>
+      <input type="file" id="sa-pedigree-dosya" accept="image/*">
+
+      <label>İletişim görseli</label>
+      <div id="sa-iletisim-prev"></div>
+      <input type="file" id="sa-iletisim-dosya" accept="image/*">
+
+      <label>Hero kayan slayt görselleri (5 adet)</label>
+      <div class="row">
+        <div><div id="sa-slide1-prev"></div><input type="file" id="sa-slide1-dosya" accept="image/*"></div>
+        <div><div id="sa-slide2-prev"></div><input type="file" id="sa-slide2-dosya" accept="image/*"></div>
+      </div>
+      <div class="row">
+        <div><div id="sa-slide3-prev"></div><input type="file" id="sa-slide3-dosya" accept="image/*"></div>
+        <div><div id="sa-slide4-prev"></div><input type="file" id="sa-slide4-dosya" accept="image/*"></div>
+      </div>
+      <div class="row">
+        <div><div id="sa-slide5-prev"></div><input type="file" id="sa-slide5-dosya" accept="image/*"></div>
+      </div>
+
+      <button onclick="saveSiteAyarlar()">Kaydet</button>
+      <div id="site-ayarlar-msg"></div>
     </div>
 
     <div class="card">
@@ -349,6 +416,7 @@ async function loadAll() {
   loadTalepler();
   loadWaStats();
   loadSiteIcerik();
+  loadSiteAyarlar();
 }
 
 async function loadSiteIcerik() {
@@ -368,6 +436,64 @@ async function saveSiteIcerik() {
   };
   const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
   showMsg("site-icerik-msg", r.ok ? "Kaydedildi" : "Hata oluştu", r.ok);
+}
+
+function absUrl(u) {
+  if (!u) return "";
+  return /^https?:\/\//.test(u) ? u : "/" + u.replace(/^\/+/, "");
+}
+
+async function loadSiteAyarlar() {
+  const d = await (await fetch("/api/site-icerik")).json();
+  document.getElementById("sa-wano").value = d.whatsapp_no || "";
+  document.getElementById("sa-talep").value = d.talep_aciklama || "";
+  document.getElementById("sa-faciklama").value = d.footer_aciklama || "";
+  document.getElementById("sa-ftelif").value = d.footer_telif || "";
+  const previews = {
+    "sa-pedigree-prev": d.pedigree_img,
+    "sa-iletisim-prev": d.iletisim_img,
+    "sa-slide1-prev": d.hero_slide1,
+    "sa-slide2-prev": d.hero_slide2,
+    "sa-slide3-prev": d.hero_slide3,
+    "sa-slide4-prev": d.hero_slide4,
+    "sa-slide5-prev": d.hero_slide5,
+  };
+  for (const [id, url] of Object.entries(previews)) {
+    const el = document.getElementById(id);
+    el.innerHTML = url ? '<img src="' + absUrl(url) + '" style="max-width:100%; max-height:100px; display:block; margin-bottom:6px; border-radius:6px;">' : '';
+  }
+  window._saCurrent = d;
+}
+
+async function saveSiteAyarlar() {
+  try {
+    const body = {
+      whatsapp_no: document.getElementById("sa-wano").value.replace(/\D/g, ""),
+      talep_aciklama: document.getElementById("sa-talep").value,
+      footer_aciklama: document.getElementById("sa-faciklama").value,
+      footer_telif: document.getElementById("sa-ftelif").value,
+    };
+    const fileMap = {
+      pedigree_img: "sa-pedigree-dosya",
+      iletisim_img: "sa-iletisim-dosya",
+      hero_slide1: "sa-slide1-dosya",
+      hero_slide2: "sa-slide2-dosya",
+      hero_slide3: "sa-slide3-dosya",
+      hero_slide4: "sa-slide4-dosya",
+      hero_slide5: "sa-slide5-dosya",
+    };
+    for (const [key, inputId] of Object.entries(fileMap)) {
+      const input = document.getElementById(inputId);
+      if (input.files[0]) {
+        body[key] = await uploadFile(input.files[0]);
+      } else if (window._saCurrent && window._saCurrent[key]) {
+        body[key] = window._saCurrent[key];
+      }
+    }
+    const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+    showMsg("site-ayarlar-msg", r.ok ? "Kaydedildi" : "Hata oluştu", r.ok);
+    if (r.ok) loadSiteAyarlar();
+  } catch (e) { showMsg("site-ayarlar-msg", e.message, false); }
 }
 
 async function loadWaStats() {
@@ -685,7 +811,12 @@ export default {
       if (path === "/api/site-icerik" && request.method === "PUT") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         const b = await request.json();
-        for (const k of ["hero_eyebrow", "hero_tagline", "hakkinda_baslik", "hakkinda_metin"]) {
+        for (const k of [
+          "hero_eyebrow", "hero_tagline", "hakkinda_baslik", "hakkinda_metin",
+          "whatsapp_no", "talep_aciklama", "footer_aciklama", "footer_telif",
+          "pedigree_img", "iletisim_img",
+          "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
+        ]) {
           if (typeof b[k] === "string") {
             await env.DB.prepare("INSERT INTO site_icerik (anahtar, deger) VALUES (?, ?) ON CONFLICT(anahtar) DO UPDATE SET deger=excluded.deger").bind(k, b[k]).run();
           }
