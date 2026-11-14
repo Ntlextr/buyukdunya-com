@@ -257,6 +257,21 @@ const PANEL_HTML = `<!DOCTYPE html>
   #login-screen { max-width:320px; margin:60px auto; }
   .hidden { display:none; }
   .uploading { opacity:0.6; }
+  header { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; }
+  .menu-btn { display:none; background:none; border:none; color:#fff; font-size:26px; line-height:1; padding:0 4px; margin:0; cursor:pointer; }
+  .layout { display:flex; align-items:flex-start; }
+  .side { width:210px; flex-shrink:0; background:#1f3d16; min-height:calc(100vh - 56px); position:sticky; top:56px; padding:8px 0; }
+  .side a { display:block; color:#fff; padding:13px 18px; text-decoration:none; font-size:15px; border-left:4px solid transparent; cursor:pointer; }
+  .side a.active { background:rgba(255,255,255,0.13); border-left-color:#b6e39f; font-weight:bold; }
+  .layout .wrap { flex:1; margin:0; min-width:0; }
+  .card.hide { display:none; }
+  .side-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:40; }
+  .side-overlay.show { display:block; }
+  @media (max-width:760px) {
+    .menu-btn { display:block; }
+    .side { position:fixed; top:0; left:0; bottom:0; width:240px; z-index:50; padding-top:64px; transform:translateX(-100%); transition:transform .25s ease; overflow-y:auto; min-height:0; }
+    .side.open { transform:translateX(0); }
+  }
 </style>
 </head>
 <body>
@@ -270,10 +285,22 @@ const PANEL_HTML = `<!DOCTYPE html>
 </div>
 
 <div id="panel" class="hidden">
-  <header><h1>Büyükdünya - Yönetim Paneli</h1></header>
+  <header><button class="menu-btn" onclick="toggleSide()" aria-label="Menü">☰</button><h1>Büyükdünya - Yönetim Paneli</h1></header>
+  <div class="side-overlay" id="side-overlay" onclick="closeSide()"></div>
+  <div class="layout">
+  <nav class="side" id="side">
+    <a data-sec="yaris" onclick="showSec('yaris')">🏆 Yarış</a>
+    <a data-sec="metin" onclick="showSec('metin')">📝 Metinler</a>
+    <a data-sec="ayar" onclick="showSec('ayar')">⚙️ Site Ayarları</a>
+    <a data-sec="haber" onclick="showSec('haber')">📰 Haberler</a>
+    <a data-sec="galeri" onclick="showSec('galeri')">🖼️ Galeri</a>
+    <a data-sec="kisrak" onclick="showSec('kisrak')">🐎 Kısraklar</a>
+    <a data-sec="talep" onclick="showSec('talep')">📩 Talepler</a>
+    <a href="/" target="_blank">🌐 Siteyi Aç</a>
+  </nav>
   <div class="wrap">
 
-    <div class="card">
+    <div class="card" data-sec="yaris">
       <h2>Yarış Sayaçları</h2>
       <div class="row">
         <div><label>Toplam Yarış</label><input type="number" id="p-toplam"></div>
@@ -287,7 +314,7 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="profile-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="yaris">
       <h2>Yarış Geçmişi Ekle</h2>
       <label>Tarih</label>
       <input type="text" id="yg-tarih" placeholder="örn. 19 Nisan 2023">
@@ -303,12 +330,12 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="yaris-gecmisi-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="yaris">
       <h2>Yarış Geçmişi Listesi</h2>
       <div id="yaris-gecmisi-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="metin">
       <h2>Site Metinleri</h2>
       <label>Hero üst yazı (küçük başlık)</label>
       <input type="text" id="si-eyebrow">
@@ -324,7 +351,7 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="site-icerik-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="ayar">
       <h2>Site Ayarları (WhatsApp, Footer, Görseller)</h2>
       <label>WhatsApp / Telefon numarası</label>
       <input type="text" id="sa-wano" placeholder="05XX XXX XX XX">
@@ -365,7 +392,7 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="site-ayarlar-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="haber">
       <h2>Yeni Haber Ekle</h2>
       <label>Tarih</label>
       <input type="text" id="n-tarih" placeholder="örn. 14 Kasım 2026">
@@ -379,12 +406,12 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="news-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="haber">
       <h2>Haberler Listesi</h2>
       <div id="news-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="galeri">
       <h2>Galeriye Ekle</h2>
       <label>Tür</label>
       <select id="g-tip"><option value="foto">Fotoğraf</option><option value="video">Video</option></select>
@@ -396,12 +423,12 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="gallery-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="galeri">
       <h2>Galeri Listesi</h2>
       <div id="gallery-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="kisrak">
       <h2>Kısrak Ekle</h2>
       <label>Kısrak Adı</label>
       <input type="text" id="k-adi">
@@ -417,25 +444,42 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="kisrak-msg"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="kisrak">
       <h2>Kısraklar Listesi</h2>
       <div id="kisrak-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="talep">
       <h2>Gelen Talepler</h2>
       <div id="talep-list"></div>
     </div>
 
-    <div class="card">
+    <div class="card" data-sec="talep">
       <h2>WhatsApp Tıklamaları</h2>
       <div id="wa-stats">Yükleniyor...</div>
     </div>
 
   </div>
+  </div>
 </div>
 
 <script>
+function showSec(sec) {
+  document.querySelectorAll(".card[data-sec]").forEach(function (c) { c.classList.toggle("hide", c.dataset.sec !== sec); });
+  document.querySelectorAll(".side a[data-sec]").forEach(function (a) { a.classList.toggle("active", a.dataset.sec === sec); });
+  closeSide();
+  window.scrollTo(0, 0);
+  try { localStorage.setItem("panelSec", sec); } catch (e) {}
+}
+function toggleSide() {
+  document.getElementById("side").classList.toggle("open");
+  document.getElementById("side-overlay").classList.toggle("show");
+}
+function closeSide() {
+  document.getElementById("side").classList.remove("open");
+  document.getElementById("side-overlay").classList.remove("show");
+}
+
 function showMsg(id, text, ok) {
   const el = document.getElementById(id);
   el.className = "msg " + (ok ? "ok" : "err");
@@ -456,6 +500,9 @@ async function login() {
 }
 
 async function loadAll() {
+  let ilk = "yaris";
+  try { ilk = localStorage.getItem("panelSec") || "yaris"; } catch (e) {}
+  showSec(ilk);
   const p = await (await fetch("/api/profile")).json();
   document.getElementById("p-toplam").value = p.toplam_yaris;
   document.getElementById("p-birincilik").value = p.birincilik;
