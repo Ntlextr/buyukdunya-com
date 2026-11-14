@@ -1028,7 +1028,11 @@ export default {
         const file = form.get("file");
         if (!file) return json({ error: "dosya yok" }, 400);
         const ext = (file.name.split(".").pop() || "bin").toLowerCase();
-        const key = `panel/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        // Dosya adı: yükleme tarihi ve saati (Türkiye saati), örn. panel/2026-11-14_22-35-01.webp
+        const tr = new Date(Date.now() + 3 * 3600 * 1000).toISOString();
+        const stamp = tr.slice(0, 10) + "_" + tr.slice(11, 19).replace(/:/g, "-");
+        let key = `panel/${stamp}.${ext}`;
+        for (let n = 2; await env.ASSETS.head(key); n++) key = `panel/${stamp}-${n}.${ext}`;
         await env.ASSETS.put(key, await file.arrayBuffer(), {
           httpMetadata: { contentType: file.type || "application/octet-stream" },
         });
