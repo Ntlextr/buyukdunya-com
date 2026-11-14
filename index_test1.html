@@ -21,7 +21,8 @@
 
   /* Hero */
   .hero { position:relative; height:92vh; min-height:480px; display:flex; align-items:center; overflow:hidden; background:#102414; }
-  .hero-video { position:absolute; top:50%; left:50%; width:100%; height:100%; object-fit:cover; transform:translate(-50%,-50%); z-index:0; }
+  .hero-slide { position:absolute; inset:0; background-size:cover; background-position:center; opacity:0; transition:opacity 1.6s ease-in-out; z-index:0; }
+  .hero-slide.active { opacity:1; }
   .hero-overlay { position:absolute; inset:0; background:linear-gradient(180deg, rgba(10,20,12,0.35), rgba(10,20,12,0.75)); z-index:1; }
   .hero-inner { position:relative; z-index:2; max-width:1100px; margin:0 auto; padding:0 20px; color:#fff; }
   .hero-eyebrow { font-size:13px; letter-spacing:3px; text-transform:uppercase; color:#9fd9ab; margin-bottom:14px; }
@@ -64,8 +65,9 @@
 
   /* Kisraklar */
   .kis-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:20px; }
-  .kis-card { background:#fff; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.07); padding:18px; display:flex; gap:16px; }
-  .kis-card img { width:90px; height:90px; object-fit:cover; border-radius:8px; flex-shrink:0; }
+  .kis-card { background:#fff; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.07); padding:18px; display:flex; gap:16px; flex-wrap:wrap; }
+  .kis-card img { width:90px; height:90px; object-fit:cover; flex-shrink:0; }
+  @media (max-width:420px){ .kis-card img { width:100%; height:160px; } }
   .kis-adi { font-weight:700; color:#102414; font-size:16px; }
   .kis-sahip { font-size:12px; color:#25D366; font-weight:700; }
   .kis-aciklama { font-size:13px; color:#555; margin-top:4px; }
@@ -82,7 +84,23 @@
   .talep-form button { background:#102414; color:#fff; border:none; padding:13px; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
   #talep-msg { font-size:14px; }
 
-  footer { background:#102414; color:#cfe3d1; text-align:center; padding:30px 20px; font-size:13px; }
+  /* Soft / cloud-like image corners everywhere */
+  .gel-card img, .gal-item, .kis-card img, .pedigree-box img, .iletisim-img, .hero-slide {
+    border-radius:22px;
+  }
+  .gel-card { border-radius:22px; box-shadow:0 10px 30px rgba(16,36,20,0.10); }
+  .gal-item { box-shadow:0 10px 24px rgba(16,36,20,0.10); }
+  .kis-card { border-radius:22px; box-shadow:0 10px 30px rgba(16,36,20,0.10); }
+  .pedigree-box img { box-shadow:0 10px 30px rgba(16,36,20,0.12); }
+  .iletisim-img { box-shadow:0 10px 30px rgba(16,36,20,0.12); }
+
+  footer { background:#102414; color:#cfe3d1; padding:50px 20px 24px; font-size:14px; }
+  .foot-wrap { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:28px; padding-bottom:24px; border-bottom:1px solid rgba(255,255,255,0.1); }
+  .foot-col h4 { color:#fff; font-size:14px; letter-spacing:0.5px; text-transform:uppercase; margin-bottom:14px; }
+  .foot-col a, .foot-col p { display:block; color:#cfe3d1; font-size:13px; margin-bottom:8px; }
+  .foot-col a:hover { color:#9fd9ab; }
+  .foot-logo { color:#fff; font-size:20px; font-weight:800; margin-bottom:10px; }
+  .foot-bottom { max-width:1100px; margin:0 auto; padding-top:18px; text-align:center; font-size:12px; color:#8fa691; }
 
   .whatsapp-float {
     position: fixed; bottom: 20px; right: 20px; background:#25D366; width:56px; height:56px;
@@ -113,9 +131,11 @@
 </header>
 
 <div class="hero">
-  <video class="hero-video" autoplay muted loop playsinline poster="aygirlar/images/slider2.jpg">
-    <source src="https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev/buyukdunya.mp4" type="video/mp4">
-  </video>
+  <div class="hero-slide active" style="background-image:url('aygirlar/images/slider2.jpg')"></div>
+  <div class="hero-slide" style="background-image:url('aygirlar/images/slider3.jpg')"></div>
+  <div class="hero-slide" style="background-image:url('aygirlar/images/slider4.jpg')"></div>
+  <div class="hero-slide" style="background-image:url('aygirlar/images/slider5.jpg')"></div>
+  <div class="hero-slide" style="background-image:url('aygirlar/images/slider6.jpg')"></div>
   <div class="hero-overlay"></div>
   <div class="hero-inner">
     <div class="hero-eyebrow">Mahmudiye Beşir Kaya Harası</div>
@@ -190,7 +210,7 @@
   <div class="sec-title">İletişim</div>
   <div class="sec-line"></div>
   <div style="display:flex; gap:24px; flex-wrap:wrap; align-items:center;">
-    <img src="aygirlar/images/buyuk.jpg" alt="Büyükdünya" style="width:220px; border-radius:10px; box-shadow:0 3px 14px rgba(0,0,0,0.1);">
+    <img src="aygirlar/images/buyuk.jpg" alt="Büyükdünya" class="iletisim-img" style="width:220px;">
     <div style="font-size:15px; color:#333;">
       <p style="margin-bottom:8px;"><strong>Mahmudiye Beşir Kaya Harası</strong></p>
       <p style="margin-bottom:8px;">WhatsApp / Telefon: <a href="tel:+905324082999" style="color:#25D366; font-weight:700;">0532 408 29 99</a></p>
@@ -200,10 +220,41 @@
 </section>
 
 <footer>
-  BÜYÜKDÜNYA — Mahmudiye Beşir Kaya Harası &middot; WhatsApp: 0532 408 29 99
+  <div class="foot-wrap">
+    <div class="foot-col">
+      <div class="foot-logo">BÜYÜKDÜNYA</div>
+      <p>Mahmudiye Beşir Kaya Harası'nda 2026 aşım sezonunda damızlık hizmetinde olan, güçlü soy ağacına ve kanıtlanmış yarış performansına sahip bir aygır.</p>
+    </div>
+    <div class="foot-col">
+      <h4>Hızlı Bağlantılar</h4>
+      <a href="#hakkinda" class="js-scroll">Hakkında</a>
+      <a href="#gelismeler" class="js-scroll">Gelişmeler</a>
+      <a href="#galeri" class="js-scroll">Galeri</a>
+      <a href="#kisraklar" class="js-scroll">Kısraklar</a>
+      <a href="#pedigree" class="js-scroll">Pedigree</a>
+    </div>
+    <div class="foot-col">
+      <h4>İletişim</h4>
+      <a href="tel:+905324082999">0532 408 29 99</a>
+      <a href="https://wa.me/905324082999?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'footer-test1'})}).catch(()=>{})">WhatsApp'tan Yazın</a>
+      <a href="#talep" class="js-scroll">Talep Formu</a>
+    </div>
+  </div>
+  <div class="foot-bottom">© 2026 BÜYÜKDÜNYA — Mahmudiye Beşir Kaya Harası. Tüm hakları saklıdır.</div>
 </footer>
 
 <script>
+(function(){
+  var slides = document.querySelectorAll(".hero-slide");
+  if (slides.length < 2) return;
+  var i = 0;
+  setInterval(function(){
+    slides[i].classList.remove("active");
+    i = (i + 1) % slides.length;
+    slides[i].classList.add("active");
+  }, 4500);
+})();
+
 document.querySelectorAll(".js-scroll").forEach(function(el){
   el.addEventListener("click", function(e){
     e.preventDefault();
