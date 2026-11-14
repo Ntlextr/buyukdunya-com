@@ -1,5 +1,8 @@
 const REPO_RAW = "https://raw.githubusercontent.com/Ntlextr/buyukdunya-com/main";
 const R2_PUBLIC = "https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev";
+const CF_BEACON_TOKEN = "1480748608ed4e08af7b7519412db4a8";
+const SITE_URL = "https://buyukdunya.com";
+const SEO_DESCRIPTION = "BÜYÜKDÜNYA - Mahmudiye Beşir Kaya Harası'nda 2026 aşım sezonunda hizmet verecek damızlık yarış aygırı. Yarış rekorları, pedigree, galeri ve kısrak eşleştirme talebi.";
 
 const TYPES = {
   html: "text/html; charset=utf-8",
@@ -59,7 +62,7 @@ function requireAuth(request, env) {
 async function renderNewsHtml(env) {
   const { results } = await env.DB.prepare("SELECT * FROM news ORDER BY sira DESC, id DESC").all();
   if (!results || results.length === 0) {
-    return `<div class="bos-icerik">Henüz bir gelişme eklenmedi.</div>`;
+    return `<div class="bos-icerik">Henüz bir haber eklenmedi.</div>`;
   }
   return results.map((n) => `
     <div class="gelisme-kart">
@@ -98,6 +101,13 @@ async function renderKisrakHtml(env) {
     </div>`).join("\n");
 }
 
+async function getSiteIcerik(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM site_icerik").all();
+  const map = {};
+  for (const r of results) map[r.anahtar] = r.deger;
+  return map;
+}
+
 async function renderStatsHtml(env) {
   const row = await env.DB.prepare("SELECT * FROM profile WHERE id=1").first();
   if (!row) return "";
@@ -107,20 +117,42 @@ ${row.toplam_yaris} Yarış ${row.birincilik} Birincilik </div>
 <div class="videogalerii rekorlar"> <i class="bi bi-trophy-fill"></i>${row.kv_galibiyeti} KV Birinciliği</div>`;
 }
 
+function seoAndAnalyticsTags(canonicalPath) {
+  const canonical = SITE_URL + (canonicalPath === "/index.html" ? "/" : canonicalPath);
+  return `
+<meta name="description" content="${esc(SEO_DESCRIPTION)}">
+<link rel="canonical" href="${canonical}">
+<meta property="og:title" content="BÜYÜKDÜNYA - Damızlık Yarış Aygırı">
+<meta property="og:description" content="${esc(SEO_DESCRIPTION)}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${canonical}">
+<meta property="og:image" content="${SITE_URL}/aygirlar/images/slider2.jpg">
+<meta property="og:locale" content="tr_TR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="robots" content="index, follow">
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "${CF_BEACON_TOKEN}"}'></script><!-- End Cloudflare Web Analytics -->
+</head>`;
+}
+
 async function servePublicPage(path, env) {
   const upstream = REPO_RAW + path;
   const resp = await fetch(upstream, { cf: { cacheTtl: 60, cacheEverything: true } });
   if (resp.status === 404) return new Response("404 Not Found", { status: 404 });
   let html = await resp.text();
 
-  const [news, gallery, stats, kisrak] = await Promise.all([
-    renderNewsHtml(env), renderGalleryHtml(env), renderStatsHtml(env), renderKisrakHtml(env),
+  const [news, gallery, stats, kisrak, icerik] = await Promise.all([
+    renderNewsHtml(env), renderGalleryHtml(env), renderStatsHtml(env), renderKisrakHtml(env), getSiteIcerik(env),
   ]);
 
   html = html.replace(/<!--NEWS_START-->[\s\S]*?<!--NEWS_END-->/, news);
   html = html.replace(/<!--GALLERY_START-->[\s\S]*?<!--GALLERY_END-->/, gallery);
   html = html.replace(/<!--STATS_START-->[\s\S]*?<!--STATS_END-->/, stats);
   html = html.replace(/<!--KISRAK_START-->[\s\S]*?<!--KISRAK_END-->/, kisrak);
+  html = html.replace(/<!--HERO_EYEBROW_START-->[\s\S]*?<!--HERO_EYEBROW_END-->/, esc(icerik.hero_eyebrow || ""));
+  html = html.replace(/<!--HERO_TAGLINE_START-->[\s\S]*?<!--HERO_TAGLINE_END-->/, esc(icerik.hero_tagline || ""));
+  html = html.replace(/<!--HAKKINDA_BASLIK_START-->[\s\S]*?<!--HAKKINDA_BASLIK_END-->/, esc(icerik.hakkinda_baslik || ""));
+  html = html.replace(/<!--HAKKINDA_METIN_START-->[\s\S]*?<!--HAKKINDA_METIN_END-->/, esc(icerik.hakkinda_metin || ""));
+  html = html.replace(/<\/head>/i, seoAndAnalyticsTags(path));
 
   const headers = new Headers();
   headers.set("Content-Type", "text/html; charset=utf-8");
@@ -202,7 +234,21 @@ const PANEL_HTML = `<!DOCTYPE html>
     </div>
 
     <div class="card">
-      <h2>Yeni Gelişme Ekle</h2>
+      <h2>Site Metinleri</h2>
+      <label>Hero üst yazı (küçük başlık)</label>
+      <input type="text" id="si-eyebrow">
+      <label>Hero alt yazı (tanıtım cümlesi)</label>
+      <textarea id="si-tagline"></textarea>
+      <label>Hakkında - kalın başlık</label>
+      <input type="text" id="si-hbaslik">
+      <label>Hakkında - açıklama metni</label>
+      <textarea id="si-hmetin"></textarea>
+      <button onclick="saveSiteIcerik()">Kaydet</button>
+      <div id="site-icerik-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Yeni Haber Ekle</h2>
       <label>Tarih</label>
       <input type="text" id="n-tarih" placeholder="örn. 14 Kasım 2026">
       <label>Başlık</label>
@@ -216,7 +262,7 @@ const PANEL_HTML = `<!DOCTYPE html>
     </div>
 
     <div class="card">
-      <h2>Gelişmeler Listesi</h2>
+      <h2>Haberler Listesi</h2>
       <div id="news-list"></div>
     </div>
 
@@ -263,6 +309,11 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="talep-list"></div>
     </div>
 
+    <div class="card">
+      <h2>WhatsApp Tıklamaları</h2>
+      <div id="wa-stats">Yükleniyor...</div>
+    </div>
+
   </div>
 </div>
 
@@ -296,6 +347,35 @@ async function loadAll() {
   loadGallery();
   loadKisrak();
   loadTalepler();
+  loadWaStats();
+  loadSiteIcerik();
+}
+
+async function loadSiteIcerik() {
+  const d = await (await fetch("/api/site-icerik")).json();
+  document.getElementById("si-eyebrow").value = d.hero_eyebrow || "";
+  document.getElementById("si-tagline").value = d.hero_tagline || "";
+  document.getElementById("si-hbaslik").value = d.hakkinda_baslik || "";
+  document.getElementById("si-hmetin").value = d.hakkinda_metin || "";
+}
+
+async function saveSiteIcerik() {
+  const body = {
+    hero_eyebrow: document.getElementById("si-eyebrow").value,
+    hero_tagline: document.getElementById("si-tagline").value,
+    hakkinda_baslik: document.getElementById("si-hbaslik").value,
+    hakkinda_metin: document.getElementById("si-hmetin").value,
+  };
+  const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  showMsg("site-icerik-msg", r.ok ? "Kaydedildi" : "Hata oluştu", r.ok);
+}
+
+async function loadWaStats() {
+  const r = await fetch("/api/wa-click-count");
+  if (!r.ok) return;
+  const d = await r.json();
+  document.getElementById("wa-stats").innerHTML =
+    "<strong>" + d.toplam + "</strong> toplam tıklama &middot; <strong>" + d.bugun + "</strong> bugün";
 }
 
 async function saveProfile() {
@@ -350,7 +430,7 @@ async function loadNews() {
       <strong>\${n.tarih}</strong> — \${n.baslik}<br>
       <small>\${n.icerik}</small><br>
       <button class="danger" onclick="deleteNews(\${n.id})">Sil</button>
-    </div>\`).join("") || "<p>Henüz gelişme yok.</p>";
+    </div>\`).join("") || "<p>Henüz haber yok.</p>";
 }
 
 async function deleteNews(id) {
@@ -598,6 +678,33 @@ export default {
         return json({ ok: true });
       }
 
+      if (path === "/api/site-icerik" && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        return json(await getSiteIcerik(env));
+      }
+      if (path === "/api/site-icerik" && request.method === "PUT") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const b = await request.json();
+        for (const k of ["hero_eyebrow", "hero_tagline", "hakkinda_baslik", "hakkinda_metin"]) {
+          if (typeof b[k] === "string") {
+            await env.DB.prepare("INSERT INTO site_icerik (anahtar, deger) VALUES (?, ?) ON CONFLICT(anahtar) DO UPDATE SET deger=excluded.deger").bind(k, b[k]).run();
+          }
+        }
+        return json({ ok: true });
+      }
+
+      if (path === "/api/wa-click" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        await env.DB.prepare("INSERT INTO wa_tiklama (kaynak) VALUES (?)").bind(b.kaynak || "bilinmiyor").run();
+        return json({ ok: true });
+      }
+      if (path === "/api/wa-click-count" && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const row = await env.DB.prepare("SELECT COUNT(*) as toplam FROM wa_tiklama").first();
+        const today = await env.DB.prepare("SELECT COUNT(*) as bugun FROM wa_tiklama WHERE date(created_at)=date('now')").first();
+        return json({ toplam: row.toplam, bugun: today.bugun });
+      }
+
       if (path === "/api/upload" && request.method === "POST") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         const form = await request.formData();
@@ -612,6 +719,17 @@ export default {
       }
 
       return json({ error: "not found" }, 404);
+    }
+
+    // --- SEO ---
+    if (path === "/robots.txt") {
+      return new Response(`User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`, {
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+    if (path === "/sitemap.xml") {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n</urlset>`;
+      return new Response(xml, { headers: { "Content-Type": "application/xml; charset=utf-8" } });
     }
 
     // --- Public site ---
