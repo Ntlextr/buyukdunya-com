@@ -19,8 +19,8 @@
   .logo-text { font-family:Georgia, 'Times New Roman', serif; font-weight:700; font-size:21px; letter-spacing:.5px; color:var(--gold2); white-space:nowrap; }
   .logo-texts { display:flex; flex-direction:column; line-height:1.1; }
   .logo-sub { font-size:10.5px; letter-spacing:2.5px; text-transform:uppercase; color:#f2e9d8; opacity:.85; white-space:nowrap; margin-top:3px; }
-  nav { display:flex; gap:18px; flex-wrap:wrap; flex:1; justify-content:center; }
-  nav a { color:#f2e9d8; font-size:13px; letter-spacing:0.4px; text-transform:uppercase; }
+  nav { display:flex; gap:15px; flex-wrap:nowrap; flex:1; justify-content:center; }
+  nav a { color:#f2e9d8; font-size:12.5px; letter-spacing:0.3px; text-transform:uppercase; white-space:nowrap; }
   nav a:hover { color:var(--gold2); }
   .wa-pill { background:#25D366; color:#fff !important; padding:9px 16px; border-radius:30px; font-size:12.5px; font-weight:700; letter-spacing:.3px; text-transform:none; white-space:nowrap; flex-shrink:0; }
   .ticker { background:var(--navy2); color:var(--gold2); text-align:center; padding:7px 10px; font-size:12.5px; letter-spacing:.3px; margin-top:62px; }
@@ -28,7 +28,7 @@
   .burger span { width:24px; height:2px; background:#fff; display:block; }
   .nav-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:999; }
   .nav-overlay.show { display:block; }
-  @media (max-width:900px){
+  @media (max-width:1240px){
     nav { display:flex; position:fixed; top:0; left:0; width:78%; max-width:280px; height:100vh; background:var(--navy2); flex-direction:column; gap:0; padding:70px 0 20px; transform:translateX(-100%); transition:transform .25s ease; overflow-y:auto; z-index:1001; justify-content:flex-start; }
     nav.open { transform:translateX(0); }
     nav a { padding:13px 20px; width:100%; border-bottom:1px solid rgba(255,255,255,0.08); }
@@ -156,6 +156,32 @@
     border-radius:50%; display:flex; align-items:center; justify-content:center;
     box-shadow:0 2px 10px rgba(0,0,0,0.3); z-index:9999;
   }
+  /* Analiz raporu */
+  .r-kap { margin-top:34px; }
+  .r-icerik { max-height:620px; overflow:hidden; position:relative; }
+  .r-kap.open .r-icerik { max-height:none; }
+  .r-kap:not(.open) .r-icerik::after { content:""; position:absolute; left:0; right:0; bottom:0; height:90px; background:linear-gradient(180deg, rgba(255,255,255,0), #fff); }
+  .section-alt .r-kap:not(.open) .r-icerik::after { background:linear-gradient(180deg, rgba(246,248,246,0), #f6f8f6); }
+  .r-bolum { background:#fff; border:1px solid #e3e8e3; border-radius:18px; padding:26px 24px; margin-bottom:22px; box-shadow:0 10px 30px rgba(16,36,20,0.06); }
+  .r-etiket { font-size:12px; font-weight:800; letter-spacing:1.5px; color:#2f6b3a; margin-bottom:6px; }
+  .r-bolum h3 { font-family:Georgia, 'Times New Roman', serif; font-size:clamp(22px,4vw,30px); color:#102414; margin-bottom:6px; }
+  .r-alt { color:#5b665e; font-size:14px; margin-bottom:16px; }
+  .r-bolum h4 { color:#1f5130; font-size:16px; margin:20px 0 8px; }
+  .r-bolum p { font-size:15px; color:#2b2f2c; line-height:1.7; margin-bottom:12px; }
+  .r-bolum ul { margin:6px 0 12px 18px; font-size:14px; line-height:1.7; color:#2b2f2c; }
+  .r-kaynak { font-size:12px !important; color:#7a847c !important; margin-top:10px; }
+  .r-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:8px 0 16px; }
+  .r-stat { background:#1f4a2c; color:#fff; border-radius:14px; padding:16px; }
+  .r-stat b { display:block; font-family:Georgia, serif; font-size:26px; color:#e8c877; }
+  .r-stat span { font-size:13px; opacity:.9; }
+  .r-tablo { overflow-x:auto; -webkit-overflow-scrolling:touch; margin:10px 0 16px; border-radius:10px; border:1px solid #e3e8e3; }
+  .r-tablo table { border-collapse:collapse; width:100%; font-size:13.5px; min-width:480px; }
+  .r-tablo th { background:#1f4a2c; color:#fff; text-align:left; padding:9px 10px; font-weight:700; white-space:nowrap; }
+  .r-tablo td { padding:8px 10px; border-top:1px solid #edf0ed; vertical-align:top; }
+  .r-tablo tbody tr:nth-child(odd) { background:#f6f4ec; }
+  .r-pdf { display:inline-block; margin:22px auto 0; background:#1f4a2c; color:#fff !important; padding:13px 22px; border-radius:30px; font-weight:700; font-size:14px; }
+  .r-sec { text-align:left; }
+  @media (max-width:600px) { .r-bolum { padding:20px 16px; } }
 </style>
 </head>
 <body>
@@ -175,6 +201,8 @@
       <a href="#kisraklar" class="js-scroll">Kısraklar</a>
       <a href="#talep" class="js-scroll">Talep Formu</a>
       <a href="#pedigree" class="js-scroll">Pedigree</a>
+      <a href="#eslesme" class="js-scroll">Eşleşme Rehberi</a>
+      <a href="#damizlik" class="js-scroll">Damızlık</a>
       <a href="#iletisim" class="js-scroll">İletişim</a>
     </nav>
     <a class="wa-pill" href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20üzerinden%20yazıyorum%2C%20BÜYÜKDÜNYA%20hakkında%20bilgi%20almak%20istiyorum." target="_blank">WhatsApp</a>
@@ -185,11 +213,11 @@
 <div class="ticker">2027 Aşım Sezonunda Sizlerle — Kısrağınızı BÜYÜKDÜNYA ile eşleştirin</div>
 
 <div class="hero">
-  <div class="hero-slide active" style="background-image:url('{{HERO_SLIDE_1}}')"></div>
-  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_2}}')"></div>
-  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_3}}')"></div>
-  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_4}}')"></div>
-  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_5}}')"></div>
+  <div class="hero-slide active" style="background-image:url('{{HERO_SLIDE_1}}');background-position:{{HERO_POS_1}}"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_2}}');background-position:{{HERO_POS_2}}"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_3}}');background-position:{{HERO_POS_3}}"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_4}}');background-position:{{HERO_POS_4}}"></div>
+  <div class="hero-slide" style="background-image:url('{{HERO_SLIDE_5}}');background-position:{{HERO_POS_5}}"></div>
   <div class="hero-overlay"></div>
   <div class="hero-inner">
     <div class="hero-eyebrow"><!--HERO_EYEBROW_START--><!--HERO_EYEBROW_END--></div>
@@ -213,10 +241,11 @@
   </div>
   <div class="yaris-list"><!--YARISGECMISI_START--><!--YARISGECMISI_END--></div>
 </div>
+<!--RAPOR:yaris-->
 
 <section class="perf-banner">
   <div class="perf-top">
-    <img src="aygirlar/images/performans-banner.jpg" alt="Büyükdünya yarış kazandı">
+    <img src="{{PERF_IMG}}" alt="Büyükdünya yarış kazandı">
     <div class="perf-text">
       <div class="tag">Pistten Kanıt</div>
       <h2>Kanıtlanmış Yarış Performansı</h2>
@@ -262,6 +291,7 @@ Büyükdünya, 2026 aşım sezonunda 33 kısrağı gebe bıraktı. Yarış hayat
     </div>
     <button class="about-toggle" id="about-toggle" onclick="toggleAbout()">Devamını Oku ⌄</button>
   </div>
+  <!--RAPOR:hakkinda-->
 </section>
 
 <section id="gelismeler" class="section-alt">
@@ -281,86 +311,15 @@ Büyükdünya, 2026 aşım sezonunda 33 kısrağı gebe bıraktı. Yarış hayat
   <div class="sec-line"></div>
   <div class="kis-grid"><!--KISRAK_START--><!--KISRAK_END--></div>
 </section>
+<!--RAPOR:eslesme-->
 
 <section id="pedigree" class="pedigree-box">
   <div class="sec-title">Pedigree</div>
   <div class="sec-line"></div>
-  <img src="{{PEDIGREE_IMG}}" alt="Büyükdünya Pedigree">
-  <div class="about-collapse" id="pedigri-collapse" style="margin-top:28px;">
-    <p style="white-space:pre-line">Diğer taraftan babası Karakemal’ın babası Halid’in Haberbatur ile anne kardeşi ve annesi Kamer 18’in de, “Hilalüzzaman 25-Kemiyetülırak 26” orjinli olması sebebi ile birçok tanıdık sima ile tam veya anne kardeşi olduğunu görmekteyiz.
-
-Kamer 18’in tam kardeşlerinden biri olan Ajda isimli kısrak, Rihem’in en iyi baba kardeşi olan ve G2/G3 klasta yarışlar kazanmayı başaran Burkal’ın da büyük annesidir. Dolayısı ile bu değerli atta “Kamer 18/Ajda” üzerinden bir Rasmussen faktör söz konusudur.
-
-O halde Büyükdünya, gerek Ajda, gerekse bahsettiğimiz Kemiyetülırak 26 bağlantılı tüm isimler ve söz konusu familyadan gelen ile eşleşmesi halinde, Kemiyetülırak 26 yoğunluklu soy ağaçları kurulacaktır, değerli at Burkal da olduğu gibi.
-
-Ayrıca yine Rihem’in en iyi baba kardeşleri arasında yer alan Peköz’ün büyük annesi Birgi de Ajda’nın kızıdır, dolayısı ile bu başarılı örnekte de “Kamer 18/Ajda” tam bağlantısı mevcuttur.
-
-Özellikle Kemiyetülırak neslinden türeyen aygır ve dolayısı ile bu hatlardan gelen kısraklar ile Büyükdünya ile eşleşmelerinde Kemiyetülırak 26 akrabalığı pedigriler için değerli bir husus olacaktır.
-
-Bunların başında Haberbatur gelir ve Büyükdünya’nın baba kardeşleri içinde en iyi olanların bazılarında kısrak babası da Haberbatur’dur ve Dündarzade, Orhunkaan, Torosdağı, Berkenin Kızı, Tuncer, Mister Win gibi örneklerde bunu görebiliriz.
-
-Ayrıca Haberbatur’un aygır oğulları Sarraf, Haberkan, Özhaber, Kırımhan, Kıvanç Can gibi isimlerin temsilcileri de Büyükdünya eşleşmeleri için uygunluk arz edebilir ki, bunlar için Özhaber ve Haberkan, Kemiyetülırak 26 üzerine akrabalıkları ile Büyükdünya eşleşmeleri için oldukça değerli soy unsurlarına sahiptir.
-
-Ayrıca Kemiyetülırak 26 neslinden gelen diğer isimlerden ;
-
-Odinhan ve oğlu Gelibolu ile Odinhan’ın tam kardeşleri Koşayalp, Adanır, Ben Anadolu ve bu isimlerin anne kardeşlerinden Firikya ve yine bu familyadan türemiş Güntay ve Bitirimkarınca temsilcileri de Büyükdünya eşleşmeleri için katkı yapabilecek diğer isimlerdendir.
-
-Diğer taraftan Ajda’nın aygır oğullarından Bozdağ ve Dayıbey kan hatları da Büyükdünya eşleşmeleri için katkı yapabilecek diğer soylardandır.
-
-Yine Rihem’in soy ağacında dikkat çeken noktalardan biri de Satvet, Kamer 18 (dolayısı ile Karakemal), Araslı ve Umutbey vasıtası ile Kemiyetülırak bağlantılarıdır.
-
-Kemiyetülırak etkileşimleri, aygırın eşleşmeleri için değerlidir, zira analiz girişinde bahsettiğimiz Kamer 18’in de bu familyadandır, dolayısı ile hem Mencule, hem de Kemiyetülırak bağlantıları sağlaması açısından Kamer 18’in varlığı, Büyükdünya için oldukça değerlidir.
-
-Yine Rihem’in başarılı baba kardeşleri arasında yer alan Eko Hat’ın annesi Serdarhan’ın kızıdır ve bu aygır da Serdarbey’in babasıdır.
-
-Serdarbey de “Doruhan- Kemiyetülırak 22” orijinli olup, bu örnekte de yukarıda ifade ettiğimiz Kemiyetülırak bağlantılarını görebileceğimiz gibi, ayrıca Serdarbey’in bu atın tam kardeşleri Kemiyetülırak 29, Kemiyetülırak 31, Kemiyetülırak 35 bağlantıları kısrak için değerlidir.
-
-İfade edilen bu isimler içinde Kemiyetülırak 29, Umutbey, Sava, Beyazmartı’nın da anneleri olup, bunlardan Umutbey, Büyükdünya’nın ikinci kısrak babasıdır. Dolayısı ile soy ağaçlarında “Sava-Atak-Savabey”, “ Beyazmartı-Balıkhan” isimleri olan kısrakların yanı sıra,
-
-Kemiyetülırak 35’in kızları Kemiyetülırak 45 ve Kemiyetülırak 52 bağlantılı isimler de eşleşme için değerlidir ve bu dişilerden türeyen Koşanefe, Benim Oğlum, Akcan, Börühan, Asalbey aygır temsilcileri ve tabi ki soy ağacında bulunan isimler de Büyükdünya için uyumlu soy ağaçları içerir.
-
-Büyükdünya’nın anne hattındaki en değerli isimlerden biri hiç şüphesiz Atomkarınca’dır.
-
-Atomkarınca’nın annesi olan Şahide 47, aynı zamanda Büyükdünya’nın da üçüncü annesidir.
-
-Dolayısı ile Atomkarınca’nın babası Şövalye ve onun babası Havuçerol bu isimlerin yer aldığı pedigrilere sahip kısraklar da Büyükdünya ile uyum potansiyeline sahiptir.
-
-Bu bağlamda yukarıda Kemiyetülırak 26 vesilesi ile ifade ettiğimiz isimlerden Bitirimkarınca da hem baba, hem anne hattı ile, Büyükdünya eşleşmeleri için önem arz edebilir.
-
-Ayrıca Atomkarınca temsilcileri ile olabilecek eşleşmelerde Şahide 47 üzerine de akrabalık olacaktır.
-
-Büyükdünya’nın annesi Rihem’in annesi Gül Perisi, Harika isimli kısrağın kızıdır ki bu kısrak da çok özel bir anne nesli olan Şahide familyasından gelir. Harika isimli kısrak ismi gibi çok değerli bir annelik kariyerinde imza atmıştır.
-
-Harika’nın yavruları arasında :
-
-Grup 2 galibi Bilgekurt (Altaha)
-
-Grup 2 galibi Kayasel (Altaha)
-
-Grup 3 galibi Nilda (Altaha)
-
-Gibi isimler en önde gelen temsilcileridirler.
-
-Büyükdünya’nın baba kardeşleri içinde en iyi olanların bazılarında da Şahide nesli etkin rol oynamıştır.
-
-Örneğin Gümbürgümbür’ün anne familyası de Şahide neslinden gelir ve üçüncü annesi Şahide 41, Büyükdünya’nın dördüncü annesi Şahide 39 ile tam kardeştir.
-
-Keza Kıyıcı’nın soy ağacından da bu böyledir ve o da Şahide 41’den gelmedir.
-
-Dolayısı ile özellikle Şahide 41 familya bağlantılı kısrakların Büyükdünya ile eşleşmelerinde “Şahide 39/Şahide 41” tam kardeş isimlerin pedigriye katılımı değerli olabilir, tıpkı Büyükdünya’nın baba kardeşleri içinde en iyilerden olan Gümbürgümbür ve Kıyıcı da olduğu gibi.
-
-Büyükdünya’nın en iyi baba kardeşleri incelendiğinde Yalaz isminin de Köçek, Gündüzdüşü, Şanverdi ve Tekçarem’in kısrak baba hatlarında yer aldığını görmekteyiz.
-
-Yalaz’ın annesi Tuluğ, Volga 2’nin tam kardeşi olup, kısrağın soy ağacında da Hilalüzzaman 25 ve Satvet vasıtası ile hem Mencule, hem de Kemiyetülırak soy bağlantılarını görmekteyiz.
-
-Dolayısı ile Yalaz ve onun annesinin tam kardeşi olan Volga 2 isimlerini soy ağaçlarında taşıyan kısraklar, şüphesiz diğer soy etkenleri de irdelenerek Büyükdünya ile uyumları değerlendirilebilir.
-
-Turbo kızları da Büyükdünya için uygun olabilir, zira bu aygırın kısrak babası olan Özüşan ismi hem Büyükdünya’nın soy ağacında yer alır, hem de Hilalüzzaman 25 ile anne kardeşi olması dolayısı ile Mencule bağlantılarını güçlendirir.
-
-Muslihittin Gurup, Pedigri Analisti.</p>
-  </div>
-  <button class="about-toggle" id="pedigri-toggle" onclick="togglePedigri()">Pedigri Analizini Oku ⌄</button>
+  <!--PEDIGREE_IMG-->
+  <!--RAPOR:pedigree-->
 </section>
+<!--RAPOR:damizlik-->
 
 <section id="talep" class="section-alt">
   <div class="sec-title">Talep Formu</div>
@@ -403,6 +362,8 @@ Muslihittin Gurup, Pedigri Analisti.</p>
       <a href="#galeri" class="js-scroll">Galeri</a>
       <a href="#kisraklar" class="js-scroll">Kısraklar</a>
       <a href="#pedigree" class="js-scroll">Pedigree</a>
+      <a href="#eslesme" class="js-scroll">Eşleşme Rehberi</a>
+      <a href="#damizlik" class="js-scroll">Damızlık</a>
     </div>
     <div class="foot-col">
       <h4>İletişim</h4>
@@ -420,6 +381,11 @@ function toggleAbout(){
   var btn = document.getElementById("about-toggle");
   var open = el.classList.toggle("open");
   btn.textContent = open ? "Daha Az Göster ⌃" : "Devamını Oku ⌄";
+}
+function raporAc(btn){
+  var k = btn.parentNode; var acik = k.classList.toggle("open");
+  btn.textContent = acik ? "Daha Az Göster ⌃" : "Devamını Oku ⌄";
+  if (!acik) k.scrollIntoView({behavior:"smooth", block:"start"});
 }
 function togglePedigri(){
   var el = document.getElementById("pedigri-collapse");

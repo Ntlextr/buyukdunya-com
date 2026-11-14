@@ -164,8 +164,8 @@ async function servePublicPage(path, env) {
   if (resp.status === 404) return new Response("404 Not Found", { status: 404 });
   let html = await resp.text();
 
-  const [news, gallery, stats, kisrak, icerik, yarisGecmisi] = await Promise.all([
-    renderNewsHtml(env), renderGalleryHtml(env), renderStatsHtml(env), renderKisrakHtml(env), getSiteIcerik(env), renderYarisGecmisiHtml(env),
+  const [news, gallery, stats, kisrak, icerik, yarisGecmisi, raporB] = await Promise.all([
+    renderNewsHtml(env), renderGalleryHtml(env), renderStatsHtml(env), renderKisrakHtml(env), getSiteIcerik(env), renderYarisGecmisiHtml(env), raporBolumleri(env),
   ]);
 
   html = html.replace(/<!--NEWS_START-->[\s\S]*?<!--NEWS_END-->/, news);
@@ -178,6 +178,8 @@ async function servePublicPage(path, env) {
   html = html.replace(/<!--HAKKINDA_BASLIK_START-->[\s\S]*?<!--HAKKINDA_BASLIK_END-->/, esc(icerik.hakkinda_baslik || ""));
   html = html.replace(/<!--HAKKINDA_KUNYE_START-->[\s\S]*?<!--HAKKINDA_KUNYE_END-->/, esc(icerik.hakkinda_kunye || "").replace(/\n/g, "<br>"));
   html = html.replace(/<!--HAKKINDA_METIN_START-->[\s\S]*?<!--HAKKINDA_METIN_END-->/, esc(icerik.hakkinda_metin || ""));
+  html = html.replace(/<!--RAPOR:([a-z]+)-->/g, (m, yer) => raporYerHtml(raporB, yer, icerik.rapor_pdf || ""));
+  html = html.replace("<!--PEDIGREE_IMG-->", icerik.pedigree_img ? `<img src="${esc(icerik.pedigree_img)}" alt="Büyükdünya Pedigree" style="margin-bottom:28px">` : "");
   html = html.replace(/<!--LOGO_START-->[\s\S]*?<!--LOGO_END-->/, icerik.logo_img ? `<img src="${esc(icerik.logo_img)}" alt="Büyükdünya">` : "");
 
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
@@ -201,11 +203,18 @@ async function servePublicPage(path, env) {
     "{{TALEP_ACIKLAMA}}": esc(icerik.talep_aciklama || ""),
     "{{FOOTER_ACIKLAMA}}": esc(icerik.footer_aciklama || ""),
     "{{FOOTER_TELIF}}": footerTelifHtml,
+    "{{PERF_IMG}}": esc(icerik.perf_img || "https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev/panel/2026-11-14_22-38-06.webp"),
+    "{{HERO_POS_1}}": esc(icerik.hero_pos1 || "center"),
+    "{{HERO_POS_2}}": esc(icerik.hero_pos2 || "center"),
+    "{{HERO_POS_3}}": esc(icerik.hero_pos3 || "center"),
+    "{{HERO_POS_4}}": esc(icerik.hero_pos4 || "center"),
+    "{{HERO_POS_5}}": esc(icerik.hero_pos5 || "center"),
   };
   for (const [token, val] of Object.entries(tokenMap)) {
     html = html.split(token).join(val);
   }
 
+  html = html.split(R2_PUBLIC + "/").join("/medya/");
   html = html.replace(/<\/head>/i, seoAndAnalyticsTags(path, icerik.hero_slide1));
 
   const headers = new Headers();
@@ -223,6 +232,131 @@ async function serveStaticAsset(path) {
   headers.set("Content-Type", TYPES[ext] || "application/octet-stream");
   headers.set("Cache-Control", "public, max-age=300");
   return new Response(resp.body, { status: resp.status, headers });
+}
+
+// ---------------- ANALİZ RAPORU ----------------
+// Biçim: "## " ara başlık · "!! değer | açıklama" rakam kutusu · "a | b" satırları tablo (ilk satır başlık)
+// "- " madde · "~ " kaynak notu · "**kalın**" · "[gizli] " ile başlayan satır sitede görünmez
+const RAPOR_YERLER = {
+  hakkinda: { ad: "Hakkında bölümü" },
+  yaris: { ad: "Yarış Analizi (yeni bölüm)", sec: "yaris-analiz", baslik: "Yarış Analizi" },
+  pedigree: { ad: "Pedigree bölümü" },
+  eslesme: { ad: "Eşleşme Rehberi (yeni bölüm)", sec: "eslesme", baslik: "Eşleşme Rehberi" },
+  damizlik: { ad: "Damızlık (yeni bölüm)", sec: "damizlik", baslik: "Damızlık" },
+  gizli: { ad: "Sitede gösterme" },
+};
+
+function raporSatirIc(t) {
+  return esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+function raporMetinHtml(metin, gizliGoster) {
+  const satirlar = String(metin || "").replace(/\r/g, "").split("\n");
+  const temiz = [];
+  for (let s of satirlar) {
+    if (/^\[gizli\]\s?/.test(s)) { if (!gizliGoster) continue; s = s.replace(/^\[gizli\]\s?/, ""); }
+    temiz.push(s);
+  }
+  let out = "", i = 0;
+  while (i < temiz.length) {
+    const s = temiz[i].trim();
+    if (!s) { i++; continue; }
+    if (s.startsWith("!! ")) {
+      let kutular = "";
+      while (i < temiz.length && temiz[i].trim().startsWith("!! ")) {
+        const [d, a] = temiz[i].trim().slice(3).split("|").map((x) => x.trim());
+        kutular += `<div class="r-stat"><b>${raporSatirIc(d)}</b><span>${raporSatirIc(a || "")}</span></div>`;
+        i++;
+      }
+      out += `<div class="r-stats">${kutular}</div>`;
+      continue;
+    }
+    if (s.startsWith("## ")) { out += `<h4>${raporSatirIc(s.slice(3))}</h4>`; i++; continue; }
+    if (s.startsWith("~ ")) { out += `<p class="r-kaynak">${raporSatirIc(s.slice(2))}</p>`; i++; continue; }
+    if (s.startsWith("- ")) {
+      let li = "";
+      while (i < temiz.length && temiz[i].trim().startsWith("- ")) { li += `<li>${raporSatirIc(temiz[i].trim().slice(2))}</li>`; i++; }
+      out += `<ul>${li}</ul>`;
+      continue;
+    }
+    if (s.includes(" | ")) {
+      const rows = [];
+      while (i < temiz.length && temiz[i].trim().includes(" | ")) { rows.push(temiz[i].trim().split("|").map((x) => x.trim())); i++; }
+      const th = rows[0].map((c) => `<th>${raporSatirIc(c)}</th>`).join("");
+      const tb = rows.slice(1).map((r) => `<tr>${r.map((c) => `<td>${raporSatirIc(c)}</td>`).join("")}</tr>`).join("");
+      out += `<div class="r-tablo"><table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`;
+      continue;
+    }
+    const p = [];
+    while (i < temiz.length) {
+      const t = temiz[i].trim();
+      if (!t || t.startsWith("## ") || t.startsWith("!! ") || t.startsWith("- ") || t.startsWith("~ ") || t.includes(" | ")) break;
+      p.push(raporSatirIc(t)); i++;
+    }
+    out += `<p>${p.join(" ")}</p>`;
+  }
+  return out;
+}
+
+async function raporBolumleri(env) {
+  try {
+    const { results } = await env.DB.prepare("SELECT * FROM rapor_bolum ORDER BY sira ASC, id ASC").all();
+    return results || [];
+  } catch (e) { return []; }
+}
+
+function raporYerHtml(bolumler, yer, pdfUrl) {
+  const liste = bolumler.filter((b) => b.yer === yer);
+  if (!liste.length) return "";
+  const kartlar = liste.map((b) => `
+    <article class="r-bolum">
+      ${b.no || b.etiket ? `<div class="r-etiket">${esc(b.no || "")}${b.no && b.etiket ? " / " : ""}${esc(b.etiket || "")}</div>` : ""}
+      ${b.baslik ? `<h3>${esc(b.baslik)}</h3>` : ""}
+      ${b.alt ? `<p class="r-alt">${esc(b.alt)}</p>` : ""}
+      ${raporMetinHtml(b.metin, false)}
+    </article>`).join("\n");
+  const pdf = pdfUrl ? `<a class="r-pdf" href="${esc(pdfUrl)}" target="_blank" rel="noopener">📄 Aygır Analiz Raporunu İndir (PDF)</a>` : "";
+  const ic = `<div class="r-kap"><div class="r-icerik">${kartlar}</div><button type="button" class="about-toggle r-toggle" onclick="raporAc(this)">Devamını Oku ⌄</button></div>`;
+  const y = RAPOR_YERLER[yer] || {};
+  if (y.sec) {
+    return `<section id="${y.sec}" class="r-sec"><div class="sec-title">${esc(y.baslik)}</div><div class="sec-line"></div>${ic}${yer === "damizlik" ? pdf : ""}</section>`;
+  }
+  return ic + (yer === "pedigree" ? pdf : "");
+}
+
+// ---------------- ŞAHLI AI (sadece panel) ----------------
+const SAHLI_REHBER = `Sen "Şahlı AI"sın: buyukdunya.com yönetim panelinin yardımcısısın. Şahlı Harası'nın damızlık aygırı BÜYÜKDÜNYA'nın tanıtım sitesini yöneten kişilere (sahibi Güven Şahlı ve Serdar) panelin nasıl kullanılacağını anlatır, at ve rapor hakkındaki sorularını aşağıdaki bilgilere dayanarak cevaplarsın.
+KURALLAR: Her zaman Türkçe, kısa, net ve adım adım anlat ("Sol menüden X'e dokun, şunu yaz, Kaydet'e bas" gibi). Bilmediğin ya da aşağıda olmayan bilgiyi uydurma; "Bu bilgi bende yok" de. Panelde bir şeyi senin yerine değiştiremezsin, sadece nasıl yapılacağını anlatırsın. Teknik terim kullanma. Fiyat/aşım ücreti sorulursa sitede fiyat yazılmadığını, WhatsApp'tan konuşulduğunu söyle.
+
+PANEL KULLANIMI (adres: buyukdunya.com/panel, sadece şifre ile giriş):
+Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
+1) 🏆 Yarış: "Yarış Sayaçları" (Toplam Yarış, Birincilik, Grup Koşu Birinciliği, KV Birinciliği) sitenin üstündeki koyu şeritte görünen rakamlardır; değiştirip Kaydet'e basılır. "Yarış Geçmişi Ekle": Tarih, Hipodrom, Mesafe, Sonuç, Açıklama yazılıp Ekle'ye basılır; listede her kaydın Sil düğmesi vardır. Bir kayıt düzeltilecekse silinip doğrusu eklenir.
+2) 📝 Metinler: Ana sayfadaki büyük fotoğrafın üstündeki küçük üst yazı ve tanıtım cümlesi; Hakkında bölümünün kalın başlığı, künye kutusu (her satır ayrı satıra yazılır) ve uzun açıklama metni. Değiştirip Kaydet.
+3) ⚙️ Site Ayarları: WhatsApp numarası (sitedeki tüm WhatsApp düğmeleri ve telefon bunu kullanır), Talep Formu açıklaması, footer açıklaması ve telif yazısı (telif yazısında "Seray Tekno Yazılım" geçerse otomatik link olur). Görseller: Logo (boş bırakılırsa sadece yazı görünür, "Logoyu Kaldır" düğmesi var, yüklenen logo otomatik küçültülür), "Pistten Kanıt" bölümü fotoğrafı, Pedigree görseli (boşsa görünmez), İletişim görseli ve ana sayfada dönen 5 slayt fotoğrafı. Slayt fotoğraflarında önizlemeye dokunarak atın durduğu nokta seçilir; telefonda o nokta ortada görünür (kırmızı nokta seçilen yeri gösterir). Dosya seçip en alttaki Kaydet'e basılır.
+4) 📰 Haberler: Tarih, Başlık, İçerik ve isteğe bağlı fotoğrafla haber eklenir; listeden silinir.
+5) 🖼️ Galeri: Tür (Fotoğraf/Video) seçilir, "Dosya Seç" ile aynı anda birden çok fotoğraf seçilebilir, Ekle'ye basılır. Fotoğraflar otomatik küçültülüp WebP'ye çevrilir ve dosya adı yükleme tarih-saati olur. En son eklenen galeride en başta görünür. Listeden Sil ile kaldırılır.
+6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir.
+7) 📑 Rapor: Aygır Analiz Raporu'nun bölümleri. Her bölümün Düzenle düğmesi vardır: Bölüm no, Etiket, Başlık, Alt başlık, "Sitede yeri" (Hakkında, Yarış Analizi, Pedigree, Eşleşme Rehberi, Damızlık ya da Sitede gösterme) ve Metin. Metin yazım kuralları: "## " ile başlayan satır ara başlık; "!! 16 / 32 | Yarış galibiyeti" rakam kutusu; içinde " | " olan alt alta satırlar tablo olur (ilk satır tablo başlığı); "- " madde; "~ " kaynak notu; **kelime** kalın; boş satır yeni paragraf; satırın başına "[gizli] " yazılırsa o satır sitede görünmez ama panelde durur. Yeni bölüm eklenebilir, silinebilir; Sıra numarası küçük olan önce gösterilir. Aynı sayfada rapor PDF'i yüklenir; sitede "Raporu İndir (PDF)" düğmesi çıkar.
+8) 📩 Talepler: Sitedeki talep formundan gelen kısrak eşleştirme talepleri (ad, telefon, kısrak, mesaj) ve WhatsApp düğmesi tıklanma sayıları.
+9) 🤖 Şahlı AI: Bu sohbet.
+10) 🌐 Siteyi Aç: Siteyi yeni sekmede açar. Yapılan değişiklik sitede en geç 1 dakika içinde görünür.
+Sorun olursa: Sayfayı yenilemek; görünmüyorsa 1 dakika beklemek; yine olmazsa Serdar'a (Seray Tekno Yazılım) haber vermek.`;
+
+async function sahliBaglam(env) {
+  const parca = [];
+  try {
+    const ic = await getSiteIcerik(env);
+    parca.push("SİTE METİNLERİ:\nHakkında başlığı: " + (ic.hakkinda_baslik || "") + "\nKünye:\n" + (ic.hakkinda_kunye || "") + "\nHakkında metni:\n" + (ic.hakkinda_metin || "") + "\nWhatsApp: " + (ic.whatsapp_no || ""));
+    const p = await env.DB.prepare("SELECT * FROM profile WHERE id=1").first();
+    if (p) parca.push(`SAYAÇLAR: ${p.toplam_yaris} yarış, ${p.birincilik} birincilik, ${p.grup_galibiyeti} grup koşusu birinciliği, ${p.kv_galibiyeti} KV birinciliği.`);
+    const yg = (await env.DB.prepare("SELECT * FROM yaris_gecmisi ORDER BY sira ASC, id ASC").all()).results || [];
+    parca.push("YARIŞ GEÇMİŞİ:\n" + yg.map((y) => `${y.tarih} · ${y.hipodrom} · ${y.mesafe} · ${y.sonuc} · ${y.aciklama || ""}`).join("\n"));
+    const say = async (t) => ((await env.DB.prepare(`SELECT COUNT(*) n FROM ${t}`).first()) || {}).n;
+    parca.push(`KAYIT SAYILARI: galeri ${await say("gallery")}, haber ${await say("news")}, kısrak ${await say("kisraklar")}, talep ${await say("talepler")}.`);
+    const rb = await raporBolumleri(env);
+    parca.push("AYGIR ANALİZ RAPORU (\"[gizli]\" ile başlayan satırlar sitede gösterilmiyor, sadece panelde duruyor):\n" + rb.map((b) => `--- ${b.no} / ${b.etiket} · ${b.baslik} (sitede yeri: ${(RAPOR_YERLER[b.yer] || {}).ad || b.yer})\n${b.alt || ""}\n${b.metin}`).join("\n"));
+  } catch (e) {}
+  return parca.join("\n\n").slice(0, 38000);
 }
 
 const PANEL_HTML = `<!DOCTYPE html>
@@ -267,6 +401,21 @@ const PANEL_HTML = `<!DOCTYPE html>
   .layout .wrap { flex:1; min-width:0; max-width:none; margin:0; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .layout .wrap > .card { max-width:760px; }
   .card.hide { display:none; }
+  .odak { position:relative; display:inline-block; cursor:crosshair; margin-bottom:6px; }
+  .odak img { display:block; max-width:100%; max-height:130px; border-radius:6px; }
+  .odak i { position:absolute; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:#e53935; border:2px solid #fff; box-shadow:0 0 4px rgba(0,0,0,.6); pointer-events:none; }
+  .ipucu { font-size:12px; color:#666; margin:2px 0 8px; }
+  .rb-item { display:flex; justify-content:space-between; align-items:center; gap:8px; border:1px solid #eee; border-radius:6px; padding:10px; margin-bottom:8px; }
+  .rb-item small { color:#777; display:block; }
+  .rb-item button { margin-top:0; padding:8px 12px; }
+  .yardim { background:#f4f8f1; border:1px solid #d8e6cf; border-radius:6px; padding:10px 12px; font-size:13px; line-height:1.7; }
+  .yardim code { background:#fff; border:1px solid #ddd; border-radius:4px; padding:0 4px; }
+  #r-onizleme { border:1px dashed #bbb; border-radius:6px; padding:10px; margin-top:10px; font-size:14px; overflow-x:auto; }
+  #r-onizleme table { border-collapse:collapse; font-size:12px; } #r-onizleme td, #r-onizleme th { border:1px solid #ddd; padding:4px 6px; }
+  .ai-kutu { height:52vh; overflow-y:auto; background:#f7f7f7; border-radius:6px; padding:10px; margin-bottom:10px; }
+  .ai-m { padding:9px 12px; border-radius:12px; margin:6px 0; max-width:88%; white-space:pre-wrap; line-height:1.5; font-size:14px; }
+  .ai-m.sen { background:#47952a; color:#fff; margin-left:auto; }
+  .ai-m.o { background:#fff; border:1px solid #e3e3e3; }
   @media (max-width:600px) { header h1 { font-size:16px; } .side { width:76px; } .side a { font-size:11px; padding:12px 2px; } .layout .wrap { padding:10px; } }
 </style>
 </head>
@@ -290,7 +439,9 @@ const PANEL_HTML = `<!DOCTYPE html>
     <a data-sec="haber" onclick="showSec('haber')"><span class="mi">📰</span>Haberler</a>
     <a data-sec="galeri" onclick="showSec('galeri')"><span class="mi">🖼️</span>Galeri</a>
     <a data-sec="kisrak" onclick="showSec('kisrak')"><span class="mi">🐎</span>Kısraklar</a>
+    <a data-sec="rapor" onclick="showSec('rapor')"><span class="mi">📑</span>Rapor</a>
     <a data-sec="talep" onclick="showSec('talep')"><span class="mi">📩</span>Talepler</a>
+    <a data-sec="ai" onclick="showSec('ai')"><span class="mi">🤖</span>Şahlı AI</a>
     <a href="/" target="_blank"><span class="mi">🌐</span>Siteyi Aç</a>
   </nav>
   <div class="wrap">
@@ -362,7 +513,11 @@ const PANEL_HTML = `<!DOCTYPE html>
       <input type="file" id="sa-logo-dosya" accept="image/*">
       <button type="button" class="secondary" onclick="clearLogo()">Logoyu Kaldır</button>
 
-      <label>Pedigree görseli</label>
+      <label>"Pistten Kanıt" bölümü fotoğrafı</label>
+      <div id="sa-perf-prev"></div>
+      <input type="file" id="sa-perf-dosya" accept="image/*">
+
+      <label>Pedigree görseli (boşsa sitede görünmez)</label>
       <div id="sa-pedigree-prev"></div>
       <input type="file" id="sa-pedigree-dosya" accept="image/*">
 
@@ -371,6 +526,7 @@ const PANEL_HTML = `<!DOCTYPE html>
       <input type="file" id="sa-iletisim-dosya" accept="image/*">
 
       <label>Hero kayan slayt görselleri (5 adet)</label>
+      <div class="ipucu">Her fotoğrafta atın durduğu yere dokun: kırmızı nokta telefonda ekranın ortasında görünür. Sonra en alttaki Kaydet'e bas.</div>
       <div class="row">
         <div><div id="sa-slide1-prev"></div><input type="file" id="sa-slide1-dosya" accept="image/*"></div>
         <div><div id="sa-slide2-prev"></div><input type="file" id="sa-slide2-dosya" accept="image/*"></div>
@@ -444,6 +600,64 @@ const PANEL_HTML = `<!DOCTYPE html>
       <div id="kisrak-list"></div>
     </div>
 
+    <div class="card" data-sec="rapor">
+      <h2>Aygır Analiz Raporu - Bölümler</h2>
+      <div id="rapor-list"></div>
+      <button onclick="raporYeni()">+ Yeni Bölüm</button>
+    </div>
+
+    <div class="card" data-sec="rapor" id="rapor-edit-card">
+      <h2 id="r-form-baslik">Bölüm Düzenle</h2>
+      <input type="hidden" id="r-id">
+      <div class="row">
+        <div><label>Sıra</label><input type="number" id="r-sira"></div>
+        <div><label>Bölüm no</label><input type="text" id="r-no" placeholder="örn. 05"></div>
+      </div>
+      <label>Etiket</label><input type="text" id="r-etiket" placeholder="örn. BEŞ KUŞAK PEDİGRİ">
+      <label>Başlık</label><input type="text" id="r-baslik">
+      <label>Alt başlık</label><input type="text" id="r-alt">
+      <label>Sitede yeri</label><select id="r-yer"></select>
+      <label>Metin</label>
+      <textarea id="r-metin" style="min-height:320px; font-family:monospace; font-size:13px;"></textarea>
+      <div class="row">
+        <button onclick="raporKaydet()">Kaydet</button>
+        <button class="secondary" onclick="raporOnizle()">Önizle</button>
+      </div>
+      <div id="rapor-msg"></div>
+      <div id="r-onizleme" style="display:none"></div>
+      <div class="yardim" style="margin-top:12px">
+        <b>Yazım kuralları</b><br>
+        <code>## Başlık</code> → ara başlık<br>
+        <code>!! 16 / 32 | Yarış galibiyeti</code> → büyük rakam kutusu<br>
+        <code>Kum | 14 / 25 | %56</code> → alt alta yazılan bu satırlar tablo olur (ilk satır tablo başlığı)<br>
+        <code>- madde</code> → madde işareti · <code>~ Kaynaklar [1]</code> → küçük kaynak notu<br>
+        <code>**kelime**</code> → kalın · boş satır → yeni paragraf<br>
+        <code>[gizli] </code> satırın başına yazılırsa o satır sitede görünmez, panelde durur.
+      </div>
+    </div>
+
+    <div class="card" data-sec="rapor">
+      <h2>Rapor PDF</h2>
+      <div id="r-pdf-durum" class="ipucu"></div>
+      <input type="file" id="r-pdf-dosya" accept="application/pdf">
+      <div class="row">
+        <button onclick="raporPdfYukle()">PDF Yükle</button>
+        <button class="secondary" onclick="raporPdfKaldir()">PDF'i Kaldır</button>
+      </div>
+      <div id="rapor-pdf-msg"></div>
+    </div>
+
+    <div class="card" data-sec="ai">
+      <h2>🤖 Şahlı AI</h2>
+      <div class="ipucu">Panelin kullanımını, raporu ve Büyükdünya ile ilgili bilgileri sorabilirsin. Örn: "Galeriye nasıl fotoğraf eklerim?"</div>
+      <div class="ai-kutu" id="ai-kutu"></div>
+      <textarea id="ai-soru" style="min-height:60px" placeholder="Sorunu yaz..."></textarea>
+      <div class="row">
+        <button onclick="aiGonder()" id="ai-btn">Gönder</button>
+        <button class="secondary" onclick="aiTemizle()">Sohbeti Temizle</button>
+      </div>
+    </div>
+
     <div class="card" data-sec="talep">
       <h2>Gelen Talepler</h2>
       <div id="talep-list"></div>
@@ -502,6 +716,7 @@ async function loadAll() {
   loadWaStats();
   loadSiteIcerik();
   loadSiteAyarlar();
+  loadRapor();
 }
 
 async function loadSiteIcerik() {
@@ -540,6 +755,7 @@ async function loadSiteAyarlar() {
     "sa-logo-prev": d.logo_img,
     "sa-pedigree-prev": d.pedigree_img,
     "sa-iletisim-prev": d.iletisim_img,
+    "sa-perf-prev": d.perf_img,
     "sa-slide1-prev": d.hero_slide1,
     "sa-slide2-prev": d.hero_slide2,
     "sa-slide3-prev": d.hero_slide3,
@@ -550,7 +766,32 @@ async function loadSiteAyarlar() {
     const el = document.getElementById(id);
     el.innerHTML = url ? '<img src="' + absUrl(url) + '" style="max-width:100%; max-height:100px; display:block; margin-bottom:6px; border-radius:6px;">' : '';
   }
+  window._heroPos = {};
+  for (let n = 1; n <= 5; n++) {
+    const url = d["hero_slide" + n];
+    const el = document.getElementById("sa-slide" + n + "-prev");
+    window._heroPos[n] = d["hero_pos" + n] || "50% 50%";
+    if (!url) continue;
+    el.innerHTML = '<div class="odak" data-n="' + n + '"><img src="' + absUrl(url) + '"><i></i></div>';
+    odakNokta(n);
+    el.firstChild.addEventListener("click", function (ev) {
+      const r = this.getBoundingClientRect();
+      const x = Math.round(((ev.clientX - r.left) / r.width) * 100);
+      const y = Math.round(((ev.clientY - r.top) / r.height) * 100);
+      window._heroPos[n] = Math.max(0, Math.min(100, x)) + "% " + Math.max(0, Math.min(100, y)) + "%";
+      odakNokta(n);
+    });
+  }
   window._saCurrent = d;
+}
+
+function odakNokta(n) {
+  const kap = document.querySelector('.odak[data-n="' + n + '"]');
+  if (!kap) return;
+  let p = (window._heroPos[n] || "50% 50%").split(" ");
+  if (p[0] === "center") p = ["50%", "50%"];
+  kap.querySelector("i").style.left = p[0];
+  kap.querySelector("i").style.top = p[1] || "50%";
 }
 
 async function clearLogo() {
@@ -572,6 +813,7 @@ async function saveSiteAyarlar() {
       logo_img: "sa-logo-dosya",
       pedigree_img: "sa-pedigree-dosya",
       iletisim_img: "sa-iletisim-dosya",
+      perf_img: "sa-perf-dosya",
       hero_slide1: "sa-slide1-dosya",
       hero_slide2: "sa-slide2-dosya",
       hero_slide3: "sa-slide3-dosya",
@@ -581,17 +823,132 @@ async function saveSiteAyarlar() {
     for (const [key, inputId] of Object.entries(fileMap)) {
       const input = document.getElementById(inputId);
       if (input.files[0]) {
-        const f = key === "logo_img" ? await resizeImageFile(input.files[0], 300, 150) : input.files[0];
+        const f = key === "logo_img" ? await resizeImageFile(input.files[0], 300, 150) : await resizeToWebp(input.files[0], 2000, 2000, 0.85);
         body[key] = await uploadFile(f);
       } else if (window._saCurrent && window._saCurrent[key]) {
         body[key] = window._saCurrent[key];
       }
+    }
+    for (let n = 1; n <= 5; n++) {
+      if (document.getElementById("sa-slide" + n + "-dosya").files[0]) body["hero_pos" + n] = "50% 50%";
+      else if (window._heroPos && window._heroPos[n]) body["hero_pos" + n] = window._heroPos[n];
     }
     const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
     showMsg("site-ayarlar-msg", r.ok ? "Kaydedildi" : "Hata oluştu", r.ok);
     if (r.ok) loadSiteAyarlar();
   } catch (e) { showMsg("site-ayarlar-msg", e.message, false); }
 }
+
+let RAPOR = [], RAPOR_YER = {};
+async function loadRapor() {
+  const r = await fetch("/api/rapor");
+  if (!r.ok) return;
+  const d = await r.json();
+  RAPOR = d.bolumler || []; RAPOR_YER = d.yerler || {};
+  const sel = document.getElementById("r-yer");
+  sel.innerHTML = Object.keys(RAPOR_YER).map(function (k) { return '<option value="' + k + '">' + RAPOR_YER[k].ad + '</option>'; }).join("");
+  const el = document.getElementById("rapor-list");
+  el.innerHTML = RAPOR.map(function (b) {
+    const yer = (RAPOR_YER[b.yer] || {}).ad || b.yer;
+    return '<div class="rb-item"><div><strong>' + escH(b.no) + ' · ' + escH(b.baslik) + '</strong><small>' + escH(b.etiket) + ' — ' + escH(yer) + '</small></div>' +
+      '<div style="display:flex;gap:6px;flex-shrink:0"><button onclick="raporDuzenle(' + b.id + ')">Düzenle</button><button class="danger" onclick="raporSil(' + b.id + ')">Sil</button></div></div>';
+  }).join("") || "<p>Henüz bölüm yok.</p>";
+  const s = await (await fetch("/api/site-icerik")).json();
+  window._raporPdf = s.rapor_pdf || "";
+  document.getElementById("r-pdf-durum").innerHTML = window._raporPdf ? 'Yüklü PDF: <a href="' + window._raporPdf + '" target="_blank">aç</a>' : "Henüz PDF yüklenmedi.";
+  if (!document.getElementById("r-id").value && RAPOR.length) raporDuzenle(RAPOR[0].id, true);
+}
+function escH(t) { const d = document.createElement("div"); d.textContent = t == null ? "" : String(t); return d.innerHTML; }
+function raporDuzenle(id, sessiz) {
+  const b = RAPOR.find(function (x) { return x.id === id; });
+  if (!b) return;
+  document.getElementById("r-id").value = b.id;
+  document.getElementById("r-sira").value = b.sira;
+  document.getElementById("r-no").value = b.no || "";
+  document.getElementById("r-etiket").value = b.etiket || "";
+  document.getElementById("r-baslik").value = b.baslik || "";
+  document.getElementById("r-alt").value = b.alt || "";
+  document.getElementById("r-yer").value = b.yer || "gizli";
+  document.getElementById("r-metin").value = b.metin || "";
+  document.getElementById("r-form-baslik").textContent = "Bölüm Düzenle: " + (b.no || "") + " " + (b.baslik || "");
+  document.getElementById("r-onizleme").style.display = "none";
+  if (!sessiz) document.getElementById("rapor-edit-card").scrollIntoView({ behavior: "smooth" });
+}
+function raporYeni() {
+  document.getElementById("r-id").value = "";
+  ["r-no", "r-etiket", "r-baslik", "r-alt", "r-metin"].forEach(function (i) { document.getElementById(i).value = ""; });
+  document.getElementById("r-sira").value = (RAPOR.length ? Math.max.apply(null, RAPOR.map(function (b) { return b.sira; })) : 0) + 1;
+  document.getElementById("r-yer").value = "gizli";
+  document.getElementById("r-form-baslik").textContent = "Yeni Bölüm";
+  document.getElementById("rapor-edit-card").scrollIntoView({ behavior: "smooth" });
+}
+async function raporKaydet() {
+  const id = document.getElementById("r-id").value;
+  const body = {
+    sira: document.getElementById("r-sira").value, no: document.getElementById("r-no").value,
+    etiket: document.getElementById("r-etiket").value, baslik: document.getElementById("r-baslik").value,
+    alt: document.getElementById("r-alt").value, yer: document.getElementById("r-yer").value,
+    metin: document.getElementById("r-metin").value,
+  };
+  const r = await fetch(id ? "/api/rapor/" + id : "/api/rapor", { method: id ? "PUT" : "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  showMsg("rapor-msg", r.ok ? "Kaydedildi (sitede en geç 1 dakikada görünür)" : "Hata oluştu", r.ok);
+  if (r.ok) { if (!id) document.getElementById("r-id").value = ""; loadRapor(); }
+}
+async function raporSil(id) {
+  if (!confirm("Bu bölüm silinsin mi?")) return;
+  await fetch("/api/rapor/" + id, { method: "DELETE" });
+  document.getElementById("r-id").value = "";
+  loadRapor();
+}
+async function raporOnizle() {
+  const r = await fetch("/api/rapor-onizle", { method: "POST", body: JSON.stringify({ metin: document.getElementById("r-metin").value }), headers: { "Content-Type": "application/json" } });
+  const d = await r.json();
+  const el = document.getElementById("r-onizleme");
+  el.innerHTML = "<b>Sitede böyle görünecek:</b>" + d.html; el.style.display = "block";
+}
+async function raporPdfYukle() {
+  const f = document.getElementById("r-pdf-dosya").files[0];
+  if (!f) { showMsg("rapor-pdf-msg", "PDF seçin", false); return; }
+  try {
+    const url = await uploadFile(f);
+    const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify({ rapor_pdf: url }), headers: { "Content-Type": "application/json" } });
+    showMsg("rapor-pdf-msg", r.ok ? "PDF yüklendi" : "Hata oluştu", r.ok);
+    document.getElementById("r-pdf-dosya").value = "";
+    loadRapor();
+  } catch (e) { showMsg("rapor-pdf-msg", e.message, false); }
+}
+async function raporPdfKaldir() {
+  if (!confirm("Sitedeki PDF indirme düğmesi kaldırılsın mı?")) return;
+  await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify({ rapor_pdf: "" }), headers: { "Content-Type": "application/json" } });
+  loadRapor();
+}
+
+let AI_GECMIS = [];
+try { AI_GECMIS = JSON.parse(localStorage.getItem("sahliAi") || "[]"); } catch (e) {}
+function aiCiz() {
+  const k = document.getElementById("ai-kutu");
+  if (!AI_GECMIS.length) { k.innerHTML = '<div class="ai-m o">Merhaba! Ben Şahlı AI. Paneli nasıl kullanacağını, raporu ya da Büyükdünya ile ilgili merak ettiğini sorabilirsin.</div>'; return; }
+  k.innerHTML = AI_GECMIS.map(function (m) { return '<div class="ai-m ' + (m.role === "user" ? "sen" : "o") + '">' + escH(m.content) + '</div>'; }).join("");
+  k.scrollTop = k.scrollHeight;
+}
+async function aiGonder() {
+  const t = document.getElementById("ai-soru");
+  const soru = t.value.trim(); if (!soru) return;
+  const onceki = AI_GECMIS.slice(-8);
+  AI_GECMIS.push({ role: "user", content: soru }); t.value = ""; aiCiz();
+  const btn = document.getElementById("ai-btn"); btn.disabled = true; btn.textContent = "Düşünüyor...";
+  try {
+    const r = await fetch("/api/sahli-ai", { method: "POST", body: JSON.stringify({ mesaj: soru, gecmis: onceki }), headers: { "Content-Type": "application/json" } });
+    const d = await r.json();
+    AI_GECMIS.push({ role: "assistant", content: d.cevap || d.error || "Cevap alınamadı." });
+  } catch (e) { AI_GECMIS.push({ role: "assistant", content: "Bağlantı hatası, tekrar dener misin?" }); }
+  AI_GECMIS = AI_GECMIS.slice(-30);
+  try { localStorage.setItem("sahliAi", JSON.stringify(AI_GECMIS)); } catch (e) {}
+  btn.disabled = false; btn.textContent = "Gönder"; aiCiz();
+}
+function aiTemizle() { AI_GECMIS = []; try { localStorage.removeItem("sahliAi"); } catch (e) {} aiCiz(); }
+document.addEventListener("DOMContentLoaded", aiCiz);
+setTimeout(aiCiz, 0);
 
 async function loadWaStats() {
   const r = await fetch("/api/wa-click-count");
@@ -1035,6 +1392,7 @@ export default {
           "whatsapp_no", "talep_aciklama", "footer_aciklama", "footer_telif",
           "logo_img", "pedigree_img", "iletisim_img",
           "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
+          "hero_pos1", "hero_pos2", "hero_pos3", "hero_pos4", "hero_pos5", "perf_img", "rapor_pdf",
         ]) {
           if (typeof b[k] === "string") {
             await env.DB.prepare("INSERT INTO site_icerik (anahtar, deger) VALUES (?, ?) ON CONFLICT(anahtar) DO UPDATE SET deger=excluded.deger").bind(k, b[k]).run();
@@ -1069,7 +1427,59 @@ export default {
         await env.ASSETS.put(key, await file.arrayBuffer(), {
           httpMetadata: { contentType: file.type || "application/octet-stream" },
         });
-        return json({ url: `${R2_PUBLIC}/${key}` });
+        return json({ url: `${SITE_URL}/medya/${key}` });
+      }
+
+      // --- Analiz Raporu ---
+      if (path === "/api/rapor" && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        return json({ bolumler: await raporBolumleri(env), yerler: RAPOR_YERLER });
+      }
+      if (path === "/api/rapor" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const b = await request.json();
+        await env.DB.prepare("INSERT INTO rapor_bolum (sira, yer, no, etiket, baslik, alt, metin) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .bind(Number(b.sira) || 0, b.yer || "gizli", b.no || "", b.etiket || "", b.baslik || "", b.alt || "", b.metin || "").run();
+        return json({ ok: true });
+      }
+      const raporMatch = path.match(/^\/api\/rapor\/(\d+)$/);
+      if (raporMatch && request.method === "PUT") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const b = await request.json();
+        await env.DB.prepare("UPDATE rapor_bolum SET sira=?, yer=?, no=?, etiket=?, baslik=?, alt=?, metin=? WHERE id=?")
+          .bind(Number(b.sira) || 0, b.yer || "gizli", b.no || "", b.etiket || "", b.baslik || "", b.alt || "", b.metin || "", raporMatch[1]).run();
+        return json({ ok: true });
+      }
+      if (raporMatch && request.method === "DELETE") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await env.DB.prepare("DELETE FROM rapor_bolum WHERE id=?").bind(raporMatch[1]).run();
+        return json({ ok: true });
+      }
+      if (path === "/api/rapor-onizle" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const b = await request.json();
+        return json({ html: raporMetinHtml(b.metin || "", false) });
+      }
+
+      // --- Şahlı AI ---
+      if (path === "/api/sahli-ai" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const b = await request.json();
+        const soru = String(b.mesaj || "").slice(0, 2000);
+        if (!soru.trim()) return json({ error: "boş mesaj" }, 400);
+        const gecmis = (Array.isArray(b.gecmis) ? b.gecmis : []).slice(-8)
+          .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 1500) }));
+        const sistem = SAHLI_REHBER + "\n\nGÜNCEL BİLGİLER (sitenin veritabanından):\n" + await sahliBaglam(env);
+        try {
+          const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+            messages: [{ role: "system", content: sistem }, ...gecmis, { role: "user", content: soru }],
+            max_tokens: 900, temperature: 0.3,
+          });
+          return json({ cevap: (r && (r.response || (r.result && r.result.response))) || "Cevap alınamadı." });
+        } catch (e) {
+          return json({ error: "Şahlı AI şu an cevap veremedi: " + (e.message || e) }, 500);
+        }
       }
 
       return json({ error: "not found" }, 404);
@@ -1084,6 +1494,18 @@ export default {
     if (path === "/sitemap.xml") {
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n</urlset>`;
       return new Response(xml, { headers: { "Content-Type": "application/xml; charset=utf-8" } });
+    }
+
+    // --- Yüklenen dosyalar (R2) kendi adresimizden: /medya/... ---
+    if (path.startsWith("/medya/")) {
+      const key = decodeURIComponent(path.slice(7));
+      const obj = await env.ASSETS.get(key);
+      if (!obj) return new Response("404 Not Found", { status: 404 });
+      const h = new Headers();
+      obj.writeHttpMetadata(h);
+      h.set("etag", obj.httpEtag);
+      h.set("Cache-Control", "public, max-age=31536000, immutable");
+      return new Response(obj.body, { headers: h });
     }
 
     // --- Public site ---
