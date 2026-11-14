@@ -1016,7 +1016,7 @@ async function login() {
   const govde = kadi ? { kadi: kadi, sifre: password } : { password: password };
   const r = await fetch("/panel/login", { method: "POST", body: JSON.stringify(govde), headers: { "Content-Type": "application/json" } });
   if (r.ok) {
-    if (await panelAc()) korumaKur();
+    if (await panelAc()) { korumaKur(); anaEkranTarifi(); }
   } else {
     let m = "Şifre hatalı"; try { m = (await r.json()).error || m; } catch (e) {}
     showMsg("login-msg", m, false);
@@ -1703,8 +1703,23 @@ window.addEventListener("beforeunload", function (e) { if (BEN && !CIKIYOR) { e.
 let CIKIYOR = false;
 document.addEventListener("click", function (e) { const a = e.target.closest("a.ust-cik"); if (a) CIKIYOR = true; }, true);
 
+// 📲 Ana ekrana ekle tarifi (iPhone'da Safari'den açılınca, uygulama olarak eklenmemişse bir kez gösterilir)
+function anaEkranTarifi() {
+  try {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const eklenmis = window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+    if (!ios || eklenmis || localStorage.getItem("anaEkranTarif") === "kapat") return;
+    const d = document.createElement("div");
+    d.style.cssText = "position:fixed;left:10px;right:10px;bottom:12px;z-index:3500;background:#0d1b3d;color:#fff;border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.55;box-shadow:0 6px 24px rgba(0,0,0,.35)";
+    d.innerHTML = '<b style="color:#e2c06a">📲 Paneli telefona uygulama gibi ekleyin</b><br>1) Alttaki <b>Paylaş</b> düğmesine dokunun (kare ve yukarı ok)<br>2) <b>Ana Ekrana Ekle</b> → <b>Ekle</b><br>3) Ana ekrandaki <b>Büyükdünya</b> ikonundan açın, bir kez giriş yapın.'
+      + '<div style="text-align:right;margin-top:8px"><button style="margin:0;background:#c9a24a;color:#0d1b3d;font-weight:bold">Tamam</button></div>';
+    d.querySelector("button").onclick = function () { localStorage.setItem("anaEkranTarif", "kapat"); d.remove(); };
+    document.body.appendChild(d);
+  } catch (e) {}
+}
+
 // Oturum zaten açıksa doğrudan paneli göster
-panelAc().then(function (ok) { if (ok) korumaKur(); });
+panelAc().then(function (ok) { if (ok) korumaKur(); anaEkranTarifi(); });
 </script>
 </body>
 </html>`;
