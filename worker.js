@@ -242,10 +242,19 @@ async function odakSemaHazirla(env) {
 let KISRAK_SEMA = false;
 async function kisrakSema(env) {
   if (KISRAK_SEMA) return;
-  for (const k of ["pdf_key TEXT", "pdf_ad TEXT", "analiz_metin TEXT", "analiz_tarih TEXT"]) {
+  for (const k of ["pdf_key TEXT", "pdf_ad TEXT", "analiz_metin TEXT", "analiz_tarih TEXT", "fotolar TEXT"]) {
     try { await env.DB.prepare("ALTER TABLE kisraklar ADD COLUMN " + k).run(); } catch (e) {}
   }
   KISRAK_SEMA = true;
+}
+// Kısrağın fotoğrafları: fotolar (JSON dizi) yoksa tek foto_url. İlki kartın büyük fotoğrafı.
+function kisrakFotolari(k) {
+  let l = []; try { l = JSON.parse(k.fotolar || "[]"); } catch (e) {}
+  if (!Array.isArray(l) || !l.length) l = k.foto_url ? [k.foto_url] : [];
+  return l.filter((u) => typeof u === "string" && u).slice(0, 30);
+}
+function fotoTemiz(liste) {
+  return (Array.isArray(liste) ? liste : []).map((u) => String(u || "").trim()).filter((u) => /^(https:\/\/[a-z0-9.-]+)?\/medya\/[A-Za-z0-9_\/.\-]+$/.test(u) || /^https:\/\/pub-[a-z0-9]+\.r2\.dev\/[A-Za-z0-9_\/.\-]+$/.test(u)).slice(0, 30);
 }
 async function pdfMetni(env, ad, bayt) {
   try {
@@ -376,18 +385,39 @@ async function renderGalleryHtml(env) {
 }
 
 async function renderKisrakHtml(env) {
+  await kisrakSema(env);
   const { results } = await env.DB.prepare("SELECT * FROM kisraklar ORDER BY sira DESC, id DESC").all();
   if (!results || results.length === 0) {
     return `<div class="bos-icerik">Henüz kısrak eklenmedi.</div>`;
   }
-  return results.map((k) => `
+  // Kart görünümü (15.11.2026): kendi stili burada (index.html önbelleği beklenmesin)
+  const stil = `<style>
+.kis-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;margin-top:22px}
+.kisrak-kart{background:#fff;border:1px solid #e7e1d2;border-radius:16px;overflow:hidden;box-shadow:0 6px 20px rgba(13,27,61,.07);display:flex;flex-direction:column}
+.kisrak-kart .kk-foto{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#f1ede3}
+.kisrak-kart .kk-bos{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--navy,#0d1b3d),var(--navy2,#152a5c));color:var(--gold2,#e8c877);font-size:46px}
+.kisrak-kart .kk-kucuk{display:flex;gap:6px;padding:8px 12px 0;overflow-x:auto}
+.kisrak-kart .kk-kucuk img{width:58px;height:44px;object-fit:cover;border-radius:6px;flex:0 0 auto}
+.kisrak-kart .kk-ic{padding:14px 16px 18px}
+.kisrak-adi{font-family:Georgia,serif;font-size:21px;font-weight:700;color:var(--navy,#0d1b3d);margin-bottom:4px}
+.kisrak-sahip{display:inline-block;font-size:12px;color:#7a5a12;background:#fbf3df;border-radius:20px;padding:2px 10px;margin-bottom:8px}
+.kisrak-aciklama{font-size:14px;color:#3b4459;line-height:1.5}
+.kisrak-tay{margin-top:10px;font-size:13px;color:#fff;background:var(--navy,#0d1b3d);border-left:3px solid var(--gold,#c9a24b);border-radius:6px;padding:6px 10px;display:inline-block}
+</style>`;
+  return stil + results.map((k) => {
+    const f = kisrakFotolari(k);
+    return `
     <div class="kisrak-kart">
-      ${k.foto_url ? `<img src="${esc(k.foto_url)}" alt=""${odakStil(k.odak)}>` : ""}
+      ${f.length ? `<img class="kk-foto" src="${esc(f[0])}" alt="${esc(k.kisrak_adi)}" loading="lazy"${odakStil(k.odak)}>` : `<div class="kk-bos">🐎</div>`}
+      ${f.length > 1 ? `<div class="kk-kucuk">${f.slice(1).map((u) => `<img src="${esc(u)}" alt="${esc(k.kisrak_adi)}" loading="lazy">`).join("")}</div>` : ""}
+      <div class="kk-ic">
       <div class="kisrak-adi">${esc(k.kisrak_adi)}</div>
       ${k.sahip_adi ? `<span class="kisrak-sahip">${esc(k.sahip_adi)}</span>` : ""}
       <div class="kisrak-aciklama">${esc(k.aciklama).replace(/\n/g, "<br>")}</div>
       ${k.tay_bilgisi ? `<div class="kisrak-tay">${esc(k.tay_bilgisi)}</div>` : ""}
-    </div>`).join("\n");
+      </div>
+    </div>`;
+  }).join("\n");
 }
 
 async function renderYarisGecmisiHtml(env) {
@@ -620,7 +650,7 @@ Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 3) ⚙️ Site Ayarları: WhatsApp numarası (sitedeki tüm WhatsApp düğmeleri ve telefon bunu kullanır), Talep Formu açıklaması, footer açıklaması ve telif yazısı (telif yazısında "Seray Tekno Yazılım" geçerse otomatik link olur). Görseller: Logo (boş bırakılırsa sadece yazı görünür, "Logoyu Kaldır" düğmesi var, yüklenen logo otomatik küçültülür), "Pistten Kanıt" bölümü fotoğrafı, Pedigree görseli (boşsa görünmez), İletişim görseli ve ana sayfada dönen 5 slayt fotoğrafı. Slayt fotoğraflarında önizlemeye dokunarak atın durduğu nokta seçilir; telefonda o nokta ortada görünür (kırmızı nokta seçilen yeri gösterir). Dosya seçip en alttaki Kaydet'e basılır.
 4) 📰 Haberler: Tarih, Başlık, İçerik ve isteğe bağlı fotoğrafla haber eklenir; listeden silinir.
 5) 🖼️ Galeri: Tür (Fotoğraf/Video) seçilir, "Dosya Seç" ile aynı anda birden çok fotoğraf seçilebilir, Ekle'ye basılır. Fotoğraflar otomatik küçültülüp WebP'ye çevrilir ve dosya adı yükleme tarih-saati olur. En son eklenen galeride en başta görünür. Listeden Sil ile kaldırılır.
-6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir. En üstte "📄 Analiz PDF'inden kısrak ekle": eşleşme analizi PDF'i (ör. Buyukdunya_Mabeyn_Pedigri_Analizi.pdf) seçilir, istenirse aynı anda birden çok; panel PDF'i okur, kısrağın adını ("Büyükdünya × Mabeyn" satırından), baba × anne satırını ve gebelik yılını kendisi doldurur; o adda kısrak zaten varsa PDF'i ona eklenir. Listede her kısrakta "📄 Analizi aç" (PDF'i açar) ve "📄 PDF ekle / değiştir" düğmeleri vardır. PDF SİTEDE GÖRÜNMEZ, sadece panelde durur; sitede kısrak kartında ad, sahip, açıklama (baba × anne) ve tay bilgisi görünür. Fotoğraf ve sahip adı sonra eklenmek istenirse kısrak silinip yeniden eklenmez; şimdilik düzenleme yok, Serdar'a söylenir.
+6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir. En üstte "📄 Analiz PDF'inden kısrak ekle": eşleşme analizi PDF'i (ör. Buyukdunya_Mabeyn_Pedigri_Analizi.pdf) seçilir, istenirse aynı anda birden çok; panel PDF'i okur, kısrağın adını ("Büyükdünya × Mabeyn" satırından), baba × anne satırını ve gebelik yılını kendisi doldurur; o adda kısrak zaten varsa PDF'i ona eklenir. Listede her kısrakta "📄 Analizi aç" (PDF'i açar) ve "📄 PDF ekle / değiştir" düğmeleri vardır. PDF SİTEDE GÖRÜNMEZ, sadece panelde durur; sitede kısrak kartında ad, sahip, açıklama (baba × anne) ve tay bilgisi görünür. Her kısrakta "✏️ Düzenle" vardır: ad, sahip, açıklama, tay bilgisi değiştirilir ve İSTENDİĞİ KADAR fotoğraf eklenir (birden çok seçilebilir, kendiliğinden küçültülür); ◀ ▶ ile sıralanır, ✕ ile çıkarılır, ilk fotoğraf sitede kartın büyük fotoğrafı olur, diğerleri altında küçük resim olarak görünür; sonra "Kaydet". Yeni kısrak eklerken de birden çok fotoğraf seçilebilir.
 7) 📑 Rapor: Aygır Analiz Raporu'nun bölümleri. Her bölümün Düzenle düğmesi vardır: Bölüm no, Etiket, Başlık, Alt başlık, "Sitede yeri" (Hakkında, Yarış Analizi, Pedigree, Eşleşme Rehberi, Damızlık ya da Sitede gösterme) ve Metin. Metin yazım kuralları: "## " ile başlayan satır ara başlık; "!! 16 / 32 | Yarış galibiyeti" rakam kutusu; içinde " | " olan alt alta satırlar tablo olur (ilk satır tablo başlığı); "- " madde; "~ " kaynak notu; **kelime** kalın; boş satır yeni paragraf; satırın başına "[gizli] " yazılırsa o satır sitede görünmez ama panelde durur. Yeni bölüm eklenebilir, silinebilir; Sıra numarası küçük olan önce gösterilir. Aynı sayfada rapor PDF'i yüklenir; sitede "Raporu İndir (PDF)" düğmesi çıkar.
 8) 📩 Talepler: Sitedeki talep formundan gelen kısrak eşleştirme talepleri (ad, telefon, kısrak, mesaj) ve WhatsApp düğmesi tıklanma sayıları.
 9) 🤖 Şahlı AI: Bu sohbet.
@@ -634,7 +664,8 @@ SIK SORULANLAR (bunları aynen bu adımlarla anlat):
 - Yarış sayısını güncellemek: 🏆 Yarış → Yarış Sayaçları → rakamları değiştir → Kaydet.
 - Raporun bir bölümünü sitede başka yere taşımak ya da kaldırmak: 📑 Rapor → Düzenle → "Sitede yeri" listesinden yeni yeri ya da "Sitede gösterme"yi seç → Kaydet.
 - Yeni PDF koymak: 📑 Rapor → Rapor PDF → Dosya seç → PDF Yükle. (Bu, Büyükdünya'nın kendi aygır raporu içindir.)
-- Bir kısrağın eşleşme analizi PDF'ini eklemek: Sol menü → 🐎 Kısraklar → en üstteki "📄 Analiz PDF'inden kısrak ekle" → "Dosya Seç" ile PDF'i (birden çok da olur) seç → "PDF'leri yükle". Panel kısrağı kendisi açar ya da aynı adlı kısrağa ekler. Başka bir kısrağa elle eklemek için listede o kısrağın "📄 PDF ekle / değiştir" düğmesi. WhatsApp'tan gelen PDF önce telefona kaydedilir (PDF'e dokun → üç nokta → Kaydet / İndir), sonra panelde "Dosya Seç"ten İndirilenler'den seçilir.
+- Bir kısrağın eşleşme analizi PDF'ini eklemek: Sol menü → 🐎 Kısraklar → en üstteki "📄 Analiz PDF'inden kısrak ekle" → "Dosya Seç" ile PDF'i (birden çok da olur) seç → "PDF'leri yükle". Panel kısrağı kendisi açar ya da aynı adlı kısrağa ekler. Başka bir kısrağa elle eklemek için listede o kısrağın "📄 PDF ekle / değiştir" düğmesi.
+- Kısrağa fotoğraf eklemek / bilgisini değiştirmek: 🐎 Kısraklar → listede kısrağın "✏️ Düzenle" → "Dosya Seç" ile fotoğrafları seç (birden çok olur) → sırayı ◀ ▶ ile ayarla → "Kaydet". WhatsApp'tan gelen PDF önce telefona kaydedilir (PDF'e dokun → üç nokta → Kaydet / İndir), sonra panelde "Dosya Seç"ten İndirilenler'den seçilir.
 - WhatsApp numarasını değiştirmek: ⚙️ Site Ayarları → WhatsApp numarası → Kaydet.`;
 
 async function sahliBaglam(env) {
@@ -945,10 +976,28 @@ const PANEL_HTML = `<!DOCTYPE html>
       <textarea id="k-aciklama"></textarea>
       <label>Tay bilgisi (opsiyonel)</label>
       <input type="text" id="k-tay" placeholder="örn. 2026 doğumlu erkek tay">
-      <label>Fotoğraf (opsiyonel)</label>
-      <input type="file" id="k-foto" accept="image/*">
+      <label>Fotoğraflar (opsiyonel, birden çok seçilebilir — ilki kartın büyük fotoğrafı olur)</label>
+      <input type="file" id="k-foto" accept="image/*" multiple>
       <button onclick="addKisrak()">Ekle</button>
       <div id="kisrak-msg"></div>
+    </div>
+
+    <div class="card" data-sec="kisrak" id="k-duz-kart" style="display:none">
+      <h2>✏️ Kısrağı düzenle</h2>
+      <label>Kısrak Adı</label>
+      <input type="text" id="kd-adi">
+      <label>Sahibi</label>
+      <input type="text" id="kd-sahip">
+      <label>Açıklama / Pedigri</label>
+      <textarea id="kd-aciklama"></textarea>
+      <label>Tay bilgisi / durum</label>
+      <input type="text" id="kd-tay">
+      <label>Fotoğraflar <small>(ilki sitede büyük görünür; ◀ ▶ ile sırala, ✕ ile çıkar)</small></label>
+      <div id="kd-fotolar" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px"></div>
+      <input type="file" id="kd-yeni" accept="image/*" multiple>
+      <div class="ipucu">Seçtiğiniz fotoğraflar otomatik küçültülüp eklenir; Kaydet'e basınca sitede görünür.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button onclick="kisrakKaydet()">Kaydet</button><button class="secondary" onclick="kisrakDuzKapat()">Vazgeç</button></div>
+      <div id="kd-msg"></div>
     </div>
 
     <div class="card" data-sec="kisrak">
@@ -1605,18 +1654,19 @@ async function deleteGallery(id) {
 
 async function addKisrak() {
   try {
-    let foto_url = "";
     const fotoInput = document.getElementById("k-foto");
-    if (fotoInput.files[0]) foto_url = await uploadFile(fotoInput.files[0]);
+    const fotolar = [];
+    for (const f of Array.from(fotoInput.files || [])) fotolar.push(await uploadFile(await resizeToWebp(f, 1600, 1600, 0.85)));
     const body = {
       kisrak_adi: document.getElementById("k-adi").value,
       sahip_adi: document.getElementById("k-sahip").value,
       aciklama: document.getElementById("k-aciklama").value,
       tay_bilgisi: document.getElementById("k-tay").value,
-      foto_url,
+      fotolar,
     };
     const r = await fetch("/api/kisrak", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
-    showMsg("kisrak-msg", r.ok ? "Eklendi" : "Hata oluştu", r.ok);
+    const d = await r.json().catch(function () { return {}; });
+    showMsg("kisrak-msg", r.ok ? "Eklendi" : (d.error || "Hata oluştu"), r.ok);
     if (r.ok) {
       document.getElementById("k-adi").value = "";
       document.getElementById("k-sahip").value = "";
@@ -1628,22 +1678,72 @@ async function addKisrak() {
   } catch (e) { showMsg("kisrak-msg", e.message, false); }
 }
 
+let KISRAKLAR = [], KD = null;
 async function loadKisrak() {
   const items = await (await fetch("/api/kisrak")).json();
+  KISRAKLAR = items;
   const el = document.getElementById("kisrak-list");
   el.innerHTML = items.map(function (k) {
     return '<div class="item">'
-      + (k.foto_url ? '<img src="' + k.foto_url + '">' : '')
+      + (k.fotolar && k.fotolar.length ? '<img src="' + k.fotolar[0] + '">' + (k.fotolar.length > 1 ? '<small> +' + (k.fotolar.length - 1) + ' fotoğraf</small><br>' : '') : '')
       + '<strong>' + kEsc(k.kisrak_adi) + '</strong>' + (k.sahip_adi ? ' — ' + kEsc(k.sahip_adi) : '') + '<br>'
       + '<small>' + kEsc(k.aciklama || '') + (k.tay_bilgisi ? ' · ' + kEsc(k.tay_bilgisi) : '') + '</small><br>'
       + (k.pdf_var ? '<small>📄 ' + kEsc(k.pdf_ad || 'Analiz') + (k.analiz_tarih ? ' · ' + kEsc(k.analiz_tarih) : '') + ' · <i>sadece panelde</i></small><br>' : '')
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
+      + '<button onclick="kisrakDuzAc(' + k.id + ')">✏️ Düzenle</button>'
       + (k.pdf_var ? '<a class="secondary" style="padding:8px 12px;border-radius:8px;text-decoration:none" target="_blank" href="/api/kisrak-pdf/' + k.id + '">📄 Analizi aç</a>' : '')
       + '<button class="secondary" onclick="kisrakPdfSec(' + k.id + ')">📄 ' + (k.pdf_var ? 'PDF değiştir' : 'PDF ekle') + '</button>'
       + (k.pdf_var ? '<button class="secondary" onclick="kisrakPdfKaldir(' + k.id + ')">PDF kaldır</button>' : '')
       + '<button class="danger" onclick="deleteKisrak(' + k.id + ')">Sil</button></div>'
       + '</div>';
   }).join("") || "<p>Henüz kısrak yok.</p>";
+}
+function kisrakDuzAc(id) {
+  const k = KISRAKLAR.find(function (x) { return x.id === id; }); if (!k) return;
+  KD = { id: id, fotolar: (k.fotolar || []).slice() };
+  document.getElementById("kd-adi").value = k.kisrak_adi || "";
+  document.getElementById("kd-sahip").value = k.sahip_adi || "";
+  document.getElementById("kd-aciklama").value = k.aciklama || "";
+  document.getElementById("kd-tay").value = k.tay_bilgisi || "";
+  document.getElementById("kd-msg").innerHTML = "";
+  kdFotoCiz();
+  const kart = document.getElementById("k-duz-kart"); kart.style.display = "";
+  kart.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function kisrakDuzKapat() { KD = null; document.getElementById("k-duz-kart").style.display = "none"; }
+function kdFotoCiz() {
+  const el = document.getElementById("kd-fotolar");
+  el.innerHTML = KD.fotolar.map(function (u, i) {
+    return '<div style="position:relative;width:104px">'
+      + '<img src="' + kEsc(u) + '" style="width:104px;height:78px;background:#eee;object-fit:cover;border-radius:8px;display:block;' + (i === 0 ? 'outline:3px solid #c9a24b' : '') + '">'
+      + '<div style="display:flex;justify-content:space-between;gap:2px;margin-top:3px">'
+      + '<button class="secondary" style="padding:2px 0;width:32px;min-width:0" onclick="kdTasi(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + '>◀</button>'
+      + '<button class="danger" style="padding:2px 0;width:32px;min-width:0" onclick="kdSil(' + i + ')">✕</button>'
+      + '<button class="secondary" style="padding:2px 0;width:32px;min-width:0" onclick="kdTasi(' + i + ',1)"' + (i === KD.fotolar.length - 1 ? ' disabled' : '') + '>▶</button>'
+      + '</div>' + (i === 0 ? '<small>Büyük fotoğraf</small>' : '') + '</div>';
+  }).join("") || '<small>Fotoğraf yok — aşağıdan ekleyin.</small>';
+}
+function kdTasi(i, y) { const j = i + y; if (j < 0 || j >= KD.fotolar.length) return; const t = KD.fotolar[i]; KD.fotolar[i] = KD.fotolar[j]; KD.fotolar[j] = t; kdFotoCiz(); }
+function kdSil(i) { KD.fotolar.splice(i, 1); kdFotoCiz(); }
+document.addEventListener("change", async function (e) {
+  if (!e.target || e.target.id !== "kd-yeni" || !KD) return;
+  const l = Array.from(e.target.files || []);
+  for (let i = 0; i < l.length; i++) {
+    document.getElementById("kd-msg").innerHTML = '<div class="msg">' + (i + 1) + ' / ' + l.length + ' fotoğraf yükleniyor…</div>';
+    try { KD.fotolar.push(await uploadFile(await resizeToWebp(l[i], 1600, 1600, 0.85))); kdFotoCiz(); }
+    catch (x) { document.getElementById("kd-msg").innerHTML = '<div class="msg err">' + kEsc(x.message) + '</div>'; }
+  }
+  document.getElementById("kd-msg").innerHTML = l.length ? '<div class="msg">' + l.length + ' fotoğraf eklendi — Kaydet’e basın.</div>' : "";
+  e.target.value = "";
+});
+async function kisrakKaydet() {
+  if (!KD) return;
+  const body = { kisrak_adi: document.getElementById("kd-adi").value, sahip_adi: document.getElementById("kd-sahip").value, aciklama: document.getElementById("kd-aciklama").value, tay_bilgisi: document.getElementById("kd-tay").value, fotolar: KD.fotolar };
+  const r = await fetch("/api/kisrak/" + KD.id, { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+  const d = await r.json().catch(function () { return {}; });
+  if (!r.ok) { showMsg("kd-msg", d.error || "Kaydedilemedi", false); return; }
+  showMsg("kisrak-msg", "✅ " + body.kisrak_adi + " kaydedildi", true);
+  kisrakDuzKapat(); loadKisrak();
 }
 function kEsc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 async function kisrakPdfGonder(dosya, id) {
@@ -2072,8 +2172,8 @@ const ANA_ISLEYICI = {
       if (path === "/api/kisrak" && request.method === "GET") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         await kisrakSema(env); await odakSemaHazirla(env);
-        const { results } = await env.DB.prepare("SELECT id, kisrak_adi, sahip_adi, aciklama, tay_bilgisi, foto_url, sira, created_at, odak, pdf_ad, analiz_tarih, (pdf_key IS NOT NULL AND pdf_key<>'') AS pdf_var FROM kisraklar ORDER BY id DESC").all();
-        return json(results);
+        const { results } = await env.DB.prepare("SELECT id, kisrak_adi, sahip_adi, aciklama, tay_bilgisi, foto_url, fotolar, sira, created_at, odak, pdf_ad, analiz_tarih, (pdf_key IS NOT NULL AND pdf_key<>'') AS pdf_var FROM kisraklar ORDER BY id DESC").all();
+        return json((results || []).map((k) => ({ ...k, fotolar: kisrakFotolari(k) })));
       }
       // Analiz PDF'i yükle: kısrak yoksa PDF'teki addan açılır, varsa (id ya da aynı ad) PDF'i eklenir/değişir
       if (path === "/api/kisrak-pdf" && request.method === "POST") {
@@ -2128,12 +2228,31 @@ const ANA_ISLEYICI = {
       if (path === "/api/kisrak" && request.method === "POST") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         const b = await request.json();
+        await kisrakSema(env);
+        const fl = fotoTemiz(b.fotolar && b.fotolar.length ? b.fotolar : (b.foto_url ? [b.foto_url] : []));
+        if (!String(b.kisrak_adi || "").trim()) return json({ error: "Kısrak adı yazın" }, 400);
+        const odak = fl[0] ? await atOdakBul(env, fl[0]) : null;
         await env.DB.prepare(
-          "INSERT INTO kisraklar (kisrak_adi, sahip_adi, aciklama, tay_bilgisi, foto_url) VALUES (?, ?, ?, ?, ?)"
-        ).bind(b.kisrak_adi || "", b.sahip_adi || "", b.aciklama || "", b.tay_bilgisi || "", b.foto_url || "").run();
+          "INSERT INTO kisraklar (kisrak_adi, sahip_adi, aciklama, tay_bilgisi, foto_url, fotolar, odak) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).bind(String(b.kisrak_adi).trim().slice(0, 60), String(b.sahip_adi || "").slice(0, 80), String(b.aciklama || "").slice(0, 2000), String(b.tay_bilgisi || "").slice(0, 200), fl[0] || "", JSON.stringify(fl), odak).run();
         return json({ ok: true });
       }
       const kisrakMatch = path.match(/^\/api\/kisrak\/(\d+)$/);
+      // Kısrağı düzenle: ad, sahip, açıklama, tay bilgisi, fotoğraflar (sıralı; ilki kartın büyük fotoğrafı)
+      if (kisrakMatch && request.method === "PUT") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await kisrakSema(env); await odakSemaHazirla(env);
+        const eski = await env.DB.prepare("SELECT * FROM kisraklar WHERE id=?").bind(kisrakMatch[1]).first();
+        if (!eski) return json({ error: "Kısrak bulunamadı" }, 404);
+        const b = await request.json();
+        if (!String(b.kisrak_adi || "").trim()) return json({ error: "Kısrak adı boş olamaz" }, 400);
+        const fl = fotoTemiz(b.fotolar);
+        let odak = eski.odak;
+        if ((fl[0] || "") !== (kisrakFotolari(eski)[0] || "")) odak = fl[0] ? await atOdakBul(env, fl[0]) : null;
+        await env.DB.prepare("UPDATE kisraklar SET kisrak_adi=?, sahip_adi=?, aciklama=?, tay_bilgisi=?, foto_url=?, fotolar=?, odak=? WHERE id=?")
+          .bind(String(b.kisrak_adi).trim().slice(0, 60), String(b.sahip_adi || "").slice(0, 80), String(b.aciklama || "").slice(0, 2000), String(b.tay_bilgisi || "").slice(0, 200), fl[0] || "", JSON.stringify(fl), odak, eski.id).run();
+        return json({ ok: true });
+      }
       if (kisrakMatch && request.method === "DELETE") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         await kisrakSema(env);
