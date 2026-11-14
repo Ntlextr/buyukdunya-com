@@ -268,7 +268,10 @@ async function atOdakBul(env, adres) {
     const r = await env.AI.run("@cf/facebook/detr-resnet-50", { image: [...b] });
     const l = (Array.isArray(r) ? r : (r && r.result) || []).filter((x) => x && x.box && x.score > 0.5);
     const alan = (x) => (x.box.xmax - x.box.xmin) * (x.box.ymax - x.box.ymin) * x.score;
-    const sec = l.filter((x) => x.label === "horse").sort((a, c) => alan(c) - alan(a))[0] || l.filter((x) => x.label === "person").sort((a, c) => alan(c) - alan(a))[0];
+    const atlar = l.filter((x) => x.label === "horse").sort((a, c) => alan(c) - alan(a));
+    let sec = atlar[0] || l.filter((x) => x.label === "person").sort((a, c) => alan(c) - alan(a))[0];
+    // Koşu sahnesi gibi çok atlı resimde (3+ at, en büyüğü belirgin değil) bütün atların ortası
+    if (atlar.length >= 3 && alan(atlar[0]) < 2 * alan(atlar[1])) sec = { box: { xmin: Math.min(...atlar.map((x) => x.box.xmin)), xmax: Math.max(...atlar.map((x) => x.box.xmax)), ymin: Math.min(...atlar.map((x) => x.box.ymin)), ymax: Math.max(...atlar.map((x) => x.box.ymax)) } };
     if (!sec || !boy || !boy.w || !boy.h) return "50% 50%";
     const x = Math.round(((sec.box.xmin + sec.box.xmax) / 2 / boy.w) * 100);
     const y = Math.round(((sec.box.ymin + sec.box.ymax) / 2 / boy.h) * 100);
