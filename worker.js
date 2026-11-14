@@ -542,7 +542,8 @@ async function saveSiteAyarlar() {
     for (const [key, inputId] of Object.entries(fileMap)) {
       const input = document.getElementById(inputId);
       if (input.files[0]) {
-        body[key] = await uploadFile(input.files[0]);
+        const f = key === "logo_img" ? await resizeImageFile(input.files[0], 300, 150) : input.files[0];
+        body[key] = await uploadFile(f);
       } else if (window._saCurrent && window._saCurrent[key]) {
         body[key] = window._saCurrent[key];
       }
@@ -579,6 +580,35 @@ async function uploadFile(file) {
   if (!r.ok) throw new Error("Yükleme başarısız");
   const data = await r.json();
   return data.url;
+}
+
+// Panelden yüklenen görseli, orijinal boyutu ne olursa olsun belirtilen
+// maksimum genişlik/yükseklik içine sığacak şekilde otomatik küçültür.
+function resizeImageFile(file, maxW, maxH) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const ratio = Math.min(maxW / w, maxH / h, 1);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (!blob) { resolve(file); return; }
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" }));
+        }, "image/jpeg", 0.9);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
 }
 
 async function addNews() {
