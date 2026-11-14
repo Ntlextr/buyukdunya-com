@@ -17,3 +17,7 @@ Güven Şahlı'nın bütün işletmeleri tek panelde: Luxury Beauty Center, Şah
 - **Kanca `POST /kanca/mesaj`:** Luxury servis bağıyla (`SAHLI`) gelir; gövde `{f, u, kimden, mesaj, id, z}`, başlık `x-imza` = HMAC(ilgili `*_SAHLI_ANAHTAR`, gövde); 5 dk içinde olmalı, aynı haber bir kez işlenir (tablo `kanca`).
 - **Telefon bildirimi (Web Push, `push.js`):** dış kütüphane yok; VAPID ES256 (Secret `VAPID_OZEL` = JWK; açık anahtar ondan) + RFC 8291 aes128gcm şifreleme (Python cryptography ile bağımsız çözülerek doğrulandı). Servis çalışanı `/sw.js` SADECE bildirim gösterir (önbellek yok). Abonelikler tablo `abone`; 404/410 dönen silinir. Hesabım › 🔔 Telefon bildirimleri (Aç / Deneme / Kapat); ana sayfada Luxury hesabı olan kişiye "Mesajlar telefonunuza gelsin mi?" bandı. iPhone: iOS 16.4+, panel ana ekrana eklenmiş ve oradan açılmış olmalı.
 - **Yayın:** artık 4 modül (worker.js, panel.js, ikonlar.js, push.js) ayrı ayrı yüklenir (birleştirme YOK — push.js ile worker.js aynı adlı yardımcılar taşıyor); metadata `keep_bindings:["secret_text"]` ile Secret'lar korunur.
+
+## v1.3 — 15.11.2026: Büyükdünya hara sorun bildirimi
+- Kanca gövdesinde `tur:"sorun"` gelirse başlık "⚠️ Hara · seyis bildirdi · <kim>", etiket `buyukdunya-sorun-<id>`; dokununca `/git/buyukdunya`. Büyükdünya bunu servis bağı `SAHLI` ile Yönetici ve Hara Müdürlerinin kullanıcı adlarına (`u` → `bd_kadi`) yollar. Hareket kaydı: "… sorun bildirimi geldi".
+- Bildirim telefona ancak kişi Hesabım › 🔔'dan bildirimleri açtıysa gider (15.11.2026 itibarıyla Güven'in aboneliği yok — kendisine iletildi).
