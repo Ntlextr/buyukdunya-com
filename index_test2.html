@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BÜYÜKDÜNYA | Damızlık Yarış Aygırı</title>
+<title>BÜYÜKDÜNYA | Şahlı Harası - Damızlık Yarış Aygırı</title>
 <style>
   * { box-sizing: border-box; margin:0; padding:0; }
   body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color:#1a1a1a; background:#fff; line-height:1.6; }
@@ -17,6 +17,8 @@
   .logo-wrap { display:flex; align-items:center; gap:10px; flex-shrink:0; }
   .logo-wrap img { height:42px; width:auto; max-width:130px; object-fit:contain; border-radius:4px; background:#fff; padding:2px 6px; }
   .logo-text { font-family:Georgia, 'Times New Roman', serif; font-weight:700; font-size:21px; letter-spacing:.5px; color:var(--gold2); white-space:nowrap; }
+  .logo-texts { display:flex; flex-direction:column; line-height:1.1; }
+  .logo-sub { font-size:10.5px; letter-spacing:2.5px; text-transform:uppercase; color:#f2e9d8; opacity:.85; white-space:nowrap; margin-top:3px; }
   nav { display:flex; gap:18px; flex-wrap:wrap; flex:1; justify-content:center; }
   nav a { color:#f2e9d8; font-size:13px; letter-spacing:0.4px; text-transform:uppercase; }
   nav a:hover { color:var(--gold2); }
@@ -162,7 +164,7 @@
 
 <header>
   <div class="nav-wrap">
-    <a href="#" class="logo-wrap"><!--LOGO_START--><!--LOGO_END--><span class="logo-text">BÜYÜKDÜNYA</span></a>
+    <a href="#" class="logo-wrap"><!--LOGO_START--><!--LOGO_END--><span class="logo-texts"><span class="logo-text">BÜYÜKDÜNYA</span><span class="logo-sub">Şahlı Harası</span></span></a>
     <nav id="main-nav">
       <a href="#hakkinda" class="js-scroll">Hakkında</a>
       <a href="#yarisrekorlari" class="js-scroll">Yarış Rekorları</a>
@@ -389,6 +391,7 @@ Muslihittin Gurup, Pedigri Analisti.</p>
   <div class="foot-wrap">
     <div class="foot-col">
       <div class="foot-logo">BÜYÜKDÜNYA</div>
+      <div style="font-size:12px; letter-spacing:2px; text-transform:uppercase; opacity:.8; margin:-4px 0 10px;">Şahlı Harası</div>
       <p>{{FOOTER_ACIKLAMA}}</p>
     </div>
     <div class="foot-col">

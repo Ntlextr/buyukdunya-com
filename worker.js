@@ -2,7 +2,7 @@ const REPO_RAW = "https://raw.githubusercontent.com/Ntlextr/buyukdunya-com/main"
 const R2_PUBLIC = "https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev";
 const CF_BEACON_TOKEN = "1480748608ed4e08af7b7519412db4a8";
 const SITE_URL = "https://buyukdunya.com";
-const SEO_DESCRIPTION = "BÜYÜKDÜNYA - 2027 aşım sezonunda sizlerle, damızlık yarış aygırı. Yarış rekorları, pedigree, galeri ve kısrak eşleştirme talebi.";
+const SEO_DESCRIPTION = "BÜYÜKDÜNYA - Şahlı Harası. 2027 aşım sezonunda sizlerle, damızlık yarış aygırı. Yarış rekorları, pedigree, galeri ve kısrak eşleştirme talebi.";
 
 const TYPES = {
   html: "text/html; charset=utf-8",
@@ -146,7 +146,7 @@ function seoAndAnalyticsTags(canonicalPath, heroImg) {
   return `
 <meta name="description" content="${esc(SEO_DESCRIPTION)}">
 <link rel="canonical" href="${canonical}">
-<meta property="og:title" content="BÜYÜKDÜNYA - Damızlık Yarış Aygırı">
+<meta property="og:title" content="BÜYÜKDÜNYA | Şahlı Harası - Damızlık Yarış Aygırı">
 <meta property="og:description" content="${esc(SEO_DESCRIPTION)}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="${canonical}">
