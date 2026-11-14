@@ -340,7 +340,16 @@ Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 8) 📩 Talepler: Sitedeki talep formundan gelen kısrak eşleştirme talepleri (ad, telefon, kısrak, mesaj) ve WhatsApp düğmesi tıklanma sayıları.
 9) 🤖 Şahlı AI: Bu sohbet.
 10) 🌐 Siteyi Aç: Siteyi yeni sekmede açar. Yapılan değişiklik sitede en geç 1 dakika içinde görünür.
-Sorun olursa: Sayfayı yenilemek; görünmüyorsa 1 dakika beklemek; yine olmazsa Serdar'a (Seray Tekno Yazılım) haber vermek.`;
+Sorun olursa: Sayfayı yenilemek; görünmüyorsa 1 dakika beklemek; yine olmazsa Serdar'a (Seray Tekno Yazılım) haber vermek.
+
+SIK SORULANLAR (bunları aynen bu adımlarla anlat):
+- Rapordaki gizli bir satırı sitede göstermek: Sol menü → 📑 Rapor → ilgili bölümün "Düzenle" düğmesi → Metin kutusunda o satırın başındaki "[gizli] " yazısını sil → Kaydet. Gizlemek için de satırın başına "[gizli] " yazılır.
+- Galeriye fotoğraf eklemek: 🖼️ Galeri → "Dosya Seç" ile bir ya da birden çok fotoğraf seç → Ekle.
+- Ana sayfadaki dönen fotoğrafı değiştirmek: ⚙️ Site Ayarları → Hero slayt görselleri → ilgili "Dosya Seç" → en alttaki Kaydet. Atın yerini ayarlamak için önizlemede atın üstüne dokun, sonra Kaydet.
+- Yarış sayısını güncellemek: 🏆 Yarış → Yarış Sayaçları → rakamları değiştir → Kaydet.
+- Raporun bir bölümünü sitede başka yere taşımak ya da kaldırmak: 📑 Rapor → Düzenle → "Sitede yeri" listesinden yeni yeri ya da "Sitede gösterme"yi seç → Kaydet.
+- Yeni PDF koymak: 📑 Rapor → Rapor PDF → Dosya seç → PDF Yükle.
+- WhatsApp numarasını değiştirmek: ⚙️ Site Ayarları → WhatsApp numarası → Kaydet.`;
 
 async function sahliBaglam(env) {
   const parca = [];
@@ -356,7 +365,7 @@ async function sahliBaglam(env) {
     const rb = await raporBolumleri(env);
     parca.push("AYGIR ANALİZ RAPORU (\"[gizli]\" ile başlayan satırlar sitede gösterilmiyor, sadece panelde duruyor):\n" + rb.map((b) => `--- ${b.no} / ${b.etiket} · ${b.baslik} (sitede yeri: ${(RAPOR_YERLER[b.yer] || {}).ad || b.yer})\n${b.alt || ""}\n${b.metin}`).join("\n"));
   } catch (e) {}
-  return parca.join("\n\n").slice(0, 38000);
+  return parca.join("\n\n").slice(0, 30000);
 }
 
 const PANEL_HTML = `<!DOCTYPE html>
@@ -1470,7 +1479,7 @@ export default {
         const gecmis = (Array.isArray(b.gecmis) ? b.gecmis : []).slice(-8)
           .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
           .map((m) => ({ role: m.role, content: m.content.slice(0, 1500) }));
-        const sistem = SAHLI_REHBER + "\n\nGÜNCEL BİLGİLER (sitenin veritabanından):\n" + await sahliBaglam(env);
+        const sistem = "GÜNCEL BİLGİLER (sitenin veritabanından, at ve rapor soruları için):\n" + await sahliBaglam(env) + "\n\n==========\n" + SAHLI_REHBER;
         try {
           const r = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
             messages: [{ role: "system", content: sistem }, ...gecmis, { role: "user", content: soru }],
