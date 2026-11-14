@@ -176,6 +176,7 @@ async function servePublicPage(path, env) {
   html = html.replace(/<!--HERO_EYEBROW_START-->[\s\S]*?<!--HERO_EYEBROW_END-->/, esc(icerik.hero_eyebrow || ""));
   html = html.replace(/<!--HERO_TAGLINE_START-->[\s\S]*?<!--HERO_TAGLINE_END-->/, esc(icerik.hero_tagline || ""));
   html = html.replace(/<!--HAKKINDA_BASLIK_START-->[\s\S]*?<!--HAKKINDA_BASLIK_END-->/, esc(icerik.hakkinda_baslik || ""));
+  html = html.replace(/<!--HAKKINDA_KUNYE_START-->[\s\S]*?<!--HAKKINDA_KUNYE_END-->/, esc(icerik.hakkinda_kunye || "").replace(/\n/g, "<br>"));
   html = html.replace(/<!--HAKKINDA_METIN_START-->[\s\S]*?<!--HAKKINDA_METIN_END-->/, esc(icerik.hakkinda_metin || ""));
 
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
@@ -308,6 +309,8 @@ const PANEL_HTML = `<!DOCTYPE html>
       <textarea id="si-tagline"></textarea>
       <label>Hakkında - kalın başlık</label>
       <input type="text" id="si-hbaslik">
+      <label>Hakkında - Künye (Baba, Anne, Yarış Kariyeri özeti)</label>
+      <textarea id="si-hkunye" placeholder="örn. Baba: Kaizbert (Zador) (RU), 1993&#10;Anne: Rihem, 2013&#10;Yarış Kariyeri: 32 yarış, 16 birincilik, 2 Grup Koşu birinciliği, 11 KV birinciliği"></textarea>
       <label>Hakkında - açıklama metni</label>
       <textarea id="si-hmetin"></textarea>
       <button onclick="saveSiteIcerik()">Kaydet</button>
@@ -461,6 +464,7 @@ async function loadSiteIcerik() {
   document.getElementById("si-eyebrow").value = d.hero_eyebrow || "";
   document.getElementById("si-tagline").value = d.hero_tagline || "";
   document.getElementById("si-hbaslik").value = d.hakkinda_baslik || "";
+  document.getElementById("si-hkunye").value = d.hakkinda_kunye || "";
   document.getElementById("si-hmetin").value = d.hakkinda_metin || "";
 }
 
@@ -469,6 +473,7 @@ async function saveSiteIcerik() {
     hero_eyebrow: document.getElementById("si-eyebrow").value,
     hero_tagline: document.getElementById("si-tagline").value,
     hakkinda_baslik: document.getElementById("si-hbaslik").value,
+    hakkinda_kunye: document.getElementById("si-hkunye").value,
     hakkinda_metin: document.getElementById("si-hmetin").value,
   };
   const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
@@ -908,7 +913,7 @@ export default {
         if (!authed) return json({ error: "unauthorized" }, 401);
         const b = await request.json();
         for (const k of [
-          "hero_eyebrow", "hero_tagline", "hakkinda_baslik", "hakkinda_metin",
+          "hero_eyebrow", "hero_tagline", "hakkinda_baslik", "hakkinda_kunye", "hakkinda_metin",
           "whatsapp_no", "talep_aciklama", "footer_aciklama", "footer_telif",
           "pedigree_img", "iletisim_img",
           "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
