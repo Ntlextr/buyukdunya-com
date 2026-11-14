@@ -2,7 +2,7 @@ const REPO_RAW = "https://raw.githubusercontent.com/Ntlextr/buyukdunya-com/main"
 const R2_PUBLIC = "https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev";
 const CF_BEACON_TOKEN = "1480748608ed4e08af7b7519412db4a8";
 const SITE_URL = "https://buyukdunya.com";
-const SEO_DESCRIPTION = "BÜYÜKDÜNYA - Mahmudiye Beşir Kaya Harası'nda 2026 aşım sezonunda hizmet verecek damızlık yarış aygırı. Yarış rekorları, pedigree, galeri ve kısrak eşleştirme talebi.";
+const SEO_DESCRIPTION = "BÜYÜKDÜNYA - 2027 aşım sezonunda sizlerle, damızlık yarış aygırı. Yarış rekorları, pedigree, galeri ve kısrak eşleştirme talebi.";
 
 const TYPES = {
   html: "text/html; charset=utf-8",
