@@ -178,6 +178,7 @@ async function servePublicPage(path, env) {
   html = html.replace(/<!--HAKKINDA_BASLIK_START-->[\s\S]*?<!--HAKKINDA_BASLIK_END-->/, esc(icerik.hakkinda_baslik || ""));
   html = html.replace(/<!--HAKKINDA_KUNYE_START-->[\s\S]*?<!--HAKKINDA_KUNYE_END-->/, esc(icerik.hakkinda_kunye || "").replace(/\n/g, "<br>"));
   html = html.replace(/<!--HAKKINDA_METIN_START-->[\s\S]*?<!--HAKKINDA_METIN_END-->/, esc(icerik.hakkinda_metin || ""));
+  html = html.replace(/<!--LOGO_START-->[\s\S]*?<!--LOGO_END-->/, icerik.logo_img ? `<img src="${esc(icerik.logo_img)}" alt="Büyükdünya">` : "");
 
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
   const waNo = icerik.whatsapp_no || "905324082999";
@@ -327,6 +328,11 @@ const PANEL_HTML = `<!DOCTYPE html>
       <textarea id="sa-faciklama"></textarea>
       <label>Footer telif (copyright) yazısı</label>
       <input type="text" id="sa-ftelif">
+
+      <label>Logo (header, opsiyonel - boş bırakılırsa sadece yazı görünür)</label>
+      <div id="sa-logo-prev"></div>
+      <input type="file" id="sa-logo-dosya" accept="image/*">
+      <button type="button" class="secondary" onclick="clearLogo()">Logoyu Kaldır</button>
 
       <label>Pedigree görseli</label>
       <div id="sa-pedigree-prev"></div>
@@ -492,6 +498,7 @@ async function loadSiteAyarlar() {
   document.getElementById("sa-faciklama").value = d.footer_aciklama || "";
   document.getElementById("sa-ftelif").value = d.footer_telif || "";
   const previews = {
+    "sa-logo-prev": d.logo_img,
     "sa-pedigree-prev": d.pedigree_img,
     "sa-iletisim-prev": d.iletisim_img,
     "sa-slide1-prev": d.hero_slide1,
@@ -507,6 +514,13 @@ async function loadSiteAyarlar() {
   window._saCurrent = d;
 }
 
+async function clearLogo() {
+  if (!confirm("Logo kaldırılsın mı? Header'da sadece yazı görünecek.")) return;
+  const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify({ logo_img: "" }), headers: { "Content-Type": "application/json" } });
+  showMsg("site-ayarlar-msg", r.ok ? "Logo kaldırıldı" : "Hata oluştu", r.ok);
+  if (r.ok) loadSiteAyarlar();
+}
+
 async function saveSiteAyarlar() {
   try {
     const body = {
@@ -516,6 +530,7 @@ async function saveSiteAyarlar() {
       footer_telif: document.getElementById("sa-ftelif").value,
     };
     const fileMap = {
+      logo_img: "sa-logo-dosya",
       pedigree_img: "sa-pedigree-dosya",
       iletisim_img: "sa-iletisim-dosya",
       hero_slide1: "sa-slide1-dosya",
@@ -915,7 +930,7 @@ export default {
         for (const k of [
           "hero_eyebrow", "hero_tagline", "hakkinda_baslik", "hakkinda_kunye", "hakkinda_metin",
           "whatsapp_no", "talep_aciklama", "footer_aciklama", "footer_telif",
-          "pedigree_img", "iletisim_img",
+          "logo_img", "pedigree_img", "iletisim_img",
           "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
         ]) {
           if (typeof b[k] === "string") {
