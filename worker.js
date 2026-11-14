@@ -410,6 +410,12 @@ const PANEL_HTML = `<!DOCTYPE html>
   .layout .wrap { flex:1; min-width:0; max-width:none; margin:0; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .layout .wrap > .card { max-width:760px; }
   .card.hide { display:none; }
+  .wrap img { cursor:zoom-in; }
+  .wrap .odak img { cursor:crosshair; }
+  .lb { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:3000; display:none; align-items:center; justify-content:center; }
+  .lb.acik { display:flex; }
+  .lb img { max-width:96vw; max-height:90vh; object-fit:contain; border-radius:8px; }
+  .lb b { position:absolute; top:12px; right:16px; color:#fff; font-size:30px; cursor:pointer; }
   .odak { position:relative; display:inline-block; cursor:crosshair; margin-bottom:6px; }
   .odak img { display:block; max-width:100%; max-height:130px; border-radius:6px; }
   .odak i { position:absolute; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:#e53935; border:2px solid #fff; box-shadow:0 0 4px rgba(0,0,0,.6); pointer-events:none; }
@@ -681,7 +687,14 @@ const PANEL_HTML = `<!DOCTYPE html>
   </div>
 </div>
 
+<div class="lb" id="lb" onclick="this.classList.remove('acik')"><b>✕</b><img id="lb-img" alt=""></div>
 <script>
+document.addEventListener("click", function (e) {
+  const t = e.target;
+  if (t.tagName !== "IMG" || !t.closest(".wrap") || t.closest(".odak")) return;
+  document.getElementById("lb-img").src = t.currentSrc || t.src;
+  document.getElementById("lb").classList.add("acik");
+});
 function showSec(sec) {
   document.querySelectorAll(".card[data-sec]").forEach(function (c) { c.classList.toggle("hide", c.dataset.sec !== sec); });
   document.querySelectorAll(".side a[data-sec]").forEach(function (a) { a.classList.toggle("active", a.dataset.sec === sec); });
