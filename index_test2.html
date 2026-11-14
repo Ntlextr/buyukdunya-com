@@ -67,6 +67,12 @@
   .stat-item { color:#fff; min-width:140px; }
   .stat-num { font-size:30px; font-weight:800; color:#9fd9ab; }
   .stat-label { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#cfe3d1; margin-top:4px; }
+  .yaris-list { max-width:1100px; margin:24px auto 0; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px; }
+  .yaris-kart { background:#15301a; border-radius:8px; padding:14px 16px; color:#fff; }
+  .yaris-tarih { font-size:11px; letter-spacing:.5px; text-transform:uppercase; color:#9fd9ab; }
+  .yaris-hipodrom { font-size:13.5px; font-weight:700; margin-top:3px; }
+  .yaris-sonuc { font-size:13px; color:#e8f0e9; margin-top:2px; }
+  .yaris-aciklama { font-size:12px; color:#b7c7b8; margin-top:4px; }
 
   /* Sections */
   section { padding:70px 20px; max-width:1100px; margin:0 auto; }
@@ -76,6 +82,11 @@
 
   .about-text { font-size:15px; color:#333; column-count:1; }
   .about-text p { margin-bottom:14px; text-align:justify; }
+  .about-collapse { max-height:220px; overflow:hidden; position:relative; }
+  .about-collapse.open { max-height:none; }
+  .about-collapse:not(.open)::after { content:""; position:absolute; left:0; right:0; bottom:0; height:70px; background:linear-gradient(180deg, rgba(255,255,255,0), #fff); }
+  .about-toggle { display:block; margin:16px auto 0; background:none; border:2px solid #152a5c; color:#152a5c; padding:9px 24px; border-radius:30px; font-weight:700; font-size:13px; cursor:pointer; }
+  .about-toggle:hover { background:#152a5c; color:#fff; }
 
   /* Gelismeler */
   .gel-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:20px; }
@@ -189,6 +200,7 @@
     <div class="stat-item"><div class="stat-num">11</div><div class="stat-label">KV Birinciliği</div></div>
     <!--STATS_END-->
   </div>
+  <div class="yaris-list"><!--YARISGECMISI_START--><!--YARISGECMISI_END--></div>
 </div>
 
 <section class="perf-banner">
@@ -213,6 +225,7 @@
   <div class="sec-line"></div>
   <div class="about-text">
     <p><strong><!--HAKKINDA_BASLIK_START-->2027 Aşım Sezonunda Sizlerle.<!--HAKKINDA_BASLIK_END--></strong></p>
+    <div class="about-collapse" id="about-collapse">
     <p style="white-space:pre-line"><!--HAKKINDA_METIN_START-->Diğer taraftan babası Karakemal’ın babası Halid’in Haberbatur ile anne kardeşi ve annesi Kamer 18’in de, “Hilalüzzaman 25-Kemiyetülırak 26” orjinli olması sebebi ile birçok tanıdık sima ile tam veya anne kardeşi olduğunu görmekteyiz.
 
 Kamer 18’in tam kardeşlerinden biri olan Ajda isimli kısrak, Rihem’in en iyi baba kardeşi olan ve G2/G3 klasta yarışlar kazanmayı başaran Burkal’ın da büyük annesidir. Dolayısı ile bu değerli atta “Kamer 18/Ajda” üzerinden bir Rasmussen faktör söz konusudur.
@@ -284,6 +297,8 @@ Dolayısı ile Yalaz ve onun annesinin tam kardeşi olan Volga 2 isimlerini soy 
 Turbo kızları da Büyükdünya için uygun olabilir, zira bu aygırın kısrak babası olan Özüşan ismi hem Büyükdünya’nın soy ağacında yer alır, hem de Hilalüzzaman 25 ile anne kardeşi olması dolayısı ile Mencule bağlantılarını güçlendirir.
 
 Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
+    </div>
+    <button class="about-toggle" id="about-toggle" onclick="toggleAbout()">Devamını Oku ⌄</button>
   </div>
 </section>
 
@@ -363,6 +378,12 @@ Muslihittin Gurup, Pedigri Analisti.<!--HAKKINDA_METIN_END--></p>
 </footer>
 
 <script>
+function toggleAbout(){
+  var el = document.getElementById("about-collapse");
+  var btn = document.getElementById("about-toggle");
+  var open = el.classList.toggle("open");
+  btn.textContent = open ? "Daha Az Göster ⌃" : "Devamını Oku ⌄";
+}
 (function(){
   var burger = document.getElementById("burger-btn");
   var nav = document.getElementById("main-nav");

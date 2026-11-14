@@ -110,6 +110,20 @@ async function renderKisrakHtml(env) {
     </div>`).join("\n");
 }
 
+async function renderYarisGecmisiHtml(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM yaris_gecmisi ORDER BY sira DESC, id DESC").all();
+  if (!results || results.length === 0) {
+    return `<div class="bos-icerik">Henüz yarış geçmişi eklenmedi.</div>`;
+  }
+  return results.map((y) => `
+    <div class="yaris-kart">
+      <span class="yaris-tarih">${esc(y.tarih)}</span>
+      <div class="yaris-hipodrom">${esc(y.hipodrom)}${y.mesafe ? ` &middot; ${esc(y.mesafe)}` : ""}</div>
+      <div class="yaris-sonuc">${esc(y.sonuc)}</div>
+      ${y.aciklama ? `<div class="yaris-aciklama">${esc(y.aciklama)}</div>` : ""}
+    </div>`).join("\n");
+}
+
 async function getSiteIcerik(env) {
   const { results } = await env.DB.prepare("SELECT * FROM site_icerik").all();
   const map = {};
@@ -150,14 +164,15 @@ async function servePublicPage(path, env) {
   if (resp.status === 404) return new Response("404 Not Found", { status: 404 });
   let html = await resp.text();
 
-  const [news, gallery, stats, kisrak, icerik] = await Promise.all([
-    renderNewsHtml(env), renderGalleryHtml(env), renderStatsHtml(env), renderKisrakHtml(env), getSiteIcerik(env),
+  const [news, gallery, stats, kisrak, icerik, yarisGecmisi] = await Promise.all([
+    renderNewsHtml(env), renderGalleryHtml(env), renderStatsHtml(env), renderKisrakHtml(env), getSiteIcerik(env), renderYarisGecmisiHtml(env),
   ]);
 
   html = html.replace(/<!--NEWS_START-->[\s\S]*?<!--NEWS_END-->/, news);
   html = html.replace(/<!--GALLERY_START-->[\s\S]*?<!--GALLERY_END-->/, gallery);
   html = html.replace(/<!--STATS_START-->[\s\S]*?<!--STATS_END-->/, stats);
   html = html.replace(/<!--KISRAK_START-->[\s\S]*?<!--KISRAK_END-->/, kisrak);
+  html = html.replace(/<!--YARISGECMISI_START-->[\s\S]*?<!--YARISGECMISI_END-->/, yarisGecmisi);
   html = html.replace(/<!--HERO_EYEBROW_START-->[\s\S]*?<!--HERO_EYEBROW_END-->/, esc(icerik.hero_eyebrow || ""));
   html = html.replace(/<!--HERO_TAGLINE_START-->[\s\S]*?<!--HERO_TAGLINE_END-->/, esc(icerik.hero_tagline || ""));
   html = html.replace(/<!--HAKKINDA_BASLIK_START-->[\s\S]*?<!--HAKKINDA_BASLIK_END-->/, esc(icerik.hakkinda_baslik || ""));
@@ -262,6 +277,27 @@ const PANEL_HTML = `<!DOCTYPE html>
       </div>
       <button onclick="saveProfile()">Kaydet</button>
       <div id="profile-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Yarış Geçmişi Ekle</h2>
+      <label>Tarih</label>
+      <input type="text" id="yg-tarih" placeholder="örn. 19 Nisan 2023">
+      <label>Hipodrom</label>
+      <input type="text" id="yg-hipodrom" placeholder="örn. İstanbul">
+      <label>Mesafe (opsiyonel)</label>
+      <input type="text" id="yg-mesafe" placeholder="örn. 1900m Çim">
+      <label>Sonuç / Derece</label>
+      <input type="text" id="yg-sonuc" placeholder="örn. 1. Geldi">
+      <label>Açıklama (opsiyonel)</label>
+      <textarea id="yg-aciklama"></textarea>
+      <button onclick="addYarisGecmisi()">Ekle</button>
+      <div id="yaris-gecmisi-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Yarış Geçmişi Listesi</h2>
+      <div id="yaris-gecmisi-list"></div>
     </div>
 
     <div class="card">
@@ -411,6 +447,7 @@ async function loadAll() {
   document.getElementById("p-grup").value = p.grup_galibiyeti;
   document.getElementById("p-kv").value = p.kv_galibiyeti;
   loadNews();
+  loadYarisGecmisi();
   loadGallery();
   loadKisrak();
   loadTalepler();
@@ -563,6 +600,45 @@ async function deleteNews(id) {
   if (!confirm("Silinsin mi?")) return;
   await fetch("/api/news/" + id, { method: "DELETE" });
   loadNews();
+}
+
+async function addYarisGecmisi() {
+  try {
+    const body = {
+      tarih: document.getElementById("yg-tarih").value,
+      hipodrom: document.getElementById("yg-hipodrom").value,
+      mesafe: document.getElementById("yg-mesafe").value,
+      sonuc: document.getElementById("yg-sonuc").value,
+      aciklama: document.getElementById("yg-aciklama").value,
+    };
+    const r = await fetch("/api/yaris-gecmisi", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
+    showMsg("yaris-gecmisi-msg", r.ok ? "Eklendi" : "Hata oluştu", r.ok);
+    if (r.ok) {
+      document.getElementById("yg-tarih").value = "";
+      document.getElementById("yg-hipodrom").value = "";
+      document.getElementById("yg-mesafe").value = "";
+      document.getElementById("yg-sonuc").value = "";
+      document.getElementById("yg-aciklama").value = "";
+      loadYarisGecmisi();
+    }
+  } catch (e) { showMsg("yaris-gecmisi-msg", e.message, false); }
+}
+
+async function loadYarisGecmisi() {
+  const items = await (await fetch("/api/yaris-gecmisi")).json();
+  const el = document.getElementById("yaris-gecmisi-list");
+  el.innerHTML = items.map(y => \`
+    <div class="item">
+      <strong>\${y.tarih}</strong> — \${y.hipodrom}\${y.mesafe ? ' · ' + y.mesafe : ''}<br>
+      <small>\${y.sonuc}\${y.aciklama ? ' — ' + y.aciklama : ''}</small><br>
+      <button class="danger" onclick="deleteYarisGecmisi(\${y.id})">Sil</button>
+    </div>\`).join("") || "<p>Henüz yarış geçmişi yok.</p>";
+}
+
+async function deleteYarisGecmisi(id) {
+  if (!confirm("Silinsin mi?")) return;
+  await fetch("/api/yaris-gecmisi/" + id, { method: "DELETE" });
+  loadYarisGecmisi();
 }
 
 async function addGallery() {
@@ -741,6 +817,26 @@ export default {
       if (newsMatch && request.method === "DELETE") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         await env.DB.prepare("DELETE FROM news WHERE id=?").bind(newsMatch[1]).run();
+        return json({ ok: true });
+      }
+
+      if (path === "/api/yaris-gecmisi" && request.method === "GET") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const { results } = await env.DB.prepare("SELECT * FROM yaris_gecmisi ORDER BY sira DESC, id DESC").all();
+        return json(results);
+      }
+      if (path === "/api/yaris-gecmisi" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        const b = await request.json();
+        await env.DB.prepare(
+          "INSERT INTO yaris_gecmisi (tarih, hipodrom, mesafe, sonuc, aciklama) VALUES (?, ?, ?, ?, ?)"
+        ).bind(b.tarih || "", b.hipodrom || "", b.mesafe || "", b.sonuc || "", b.aciklama || "").run();
+        return json({ ok: true });
+      }
+      const ygMatch = path.match(/^\/api\/yaris-gecmisi\/(\d+)$/);
+      if (ygMatch && request.method === "DELETE") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await env.DB.prepare("DELETE FROM yaris_gecmisi WHERE id=?").bind(ygMatch[1]).run();
         return json({ ok: true });
       }
 
