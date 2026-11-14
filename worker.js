@@ -217,6 +217,84 @@ function requireAuth(request, env) {
   return isAuthed(request, env);
 }
 
+// =====================================================================
+// ATA ODAKLANMA (14.11.2026, Serdar: "galeri ve ön yüzdeki bütün resimlerde hedef odak at olacak")
+// Workers AI nesne tanıma (@cf/facebook/detr-resnet-50) resimdeki atı bulur; resim kutuya sığdırılıp
+// kırpılırken (object-fit: cover) atın ortası görünür kalsın diye "x% y%" odak noktası yazılır.
+// At bulunamazsa kişi, o da yoksa orta. Panelde elle de değiştirilebilir (🎯).
+// =====================================================================
+let ODAK_SEMA = false;
+async function odakSemaHazirla(env) {
+  if (ODAK_SEMA) return;
+  for (const t of ["gallery", "news", "kisraklar"]) {
+    try { await env.DB.prepare("ALTER TABLE " + t + " ADD COLUMN odak TEXT").run(); } catch (e) {}
+  }
+  ODAK_SEMA = true;
+}
+async function resimBaytlari(env, adres) {
+  adres = String(adres || "");
+  const m = adres.match(/\/medya\/(.+)$/);
+  if (m) { const o = await env.ASSETS.get(decodeURIComponent(m[1])); return o ? new Uint8Array(await o.arrayBuffer()) : null; }
+  if (/^https?:\/\//.test(adres)) { const r = await fetch(adres); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; }
+  if (adres) { const r = await fetch(REPO_RAW + "/" + adres.replace(/^\/+/, "")); return r.ok ? new Uint8Array(await r.arrayBuffer()) : null; }
+  return null;
+}
+function resimBoyu(b) {
+  // WebP (VP8 / VP8L / VP8X), JPEG ve PNG başlığından genişlik-yükseklik
+  if (!b || b.length < 30) return null;
+  if (b[0] === 0x89 && b[1] === 0x50) return { w: (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19], h: (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23] };
+  if (b[0] === 0x52 && b[8] === 0x57) {
+    const t = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    if (t === "VP8X") return { w: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)), h: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)) };
+    if (t === "VP8 ") return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    if (t === "VP8L") { const v = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24); return { w: (v & 0x3fff) + 1, h: ((v >> 14) & 0x3fff) + 1 }; }
+  }
+  if (b[0] === 0xff && b[1] === 0xd8) {
+    let i = 2;
+    while (i < b.length - 9) {
+      if (b[i] !== 0xff) { i++; continue; }
+      const m = b[i + 1];
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: (b[i + 5] << 8) | b[i + 6], w: (b[i + 7] << 8) | b[i + 8] };
+      i += 2 + ((b[i + 2] << 8) | b[i + 3]);
+    }
+  }
+  return null;
+}
+async function atOdakBul(env, adres) {
+  try {
+    const b = await resimBaytlari(env, adres);
+    if (!b) return null;
+    const boy = resimBoyu(b);
+    const r = await env.AI.run("@cf/facebook/detr-resnet-50", { image: [...b] });
+    const l = (Array.isArray(r) ? r : (r && r.result) || []).filter((x) => x && x.box && x.score > 0.5);
+    const alan = (x) => (x.box.xmax - x.box.xmin) * (x.box.ymax - x.box.ymin) * x.score;
+    const sec = l.filter((x) => x.label === "horse").sort((a, c) => alan(c) - alan(a))[0] || l.filter((x) => x.label === "person").sort((a, c) => alan(c) - alan(a))[0];
+    if (!sec || !boy || !boy.w || !boy.h) return "50% 50%";
+    const x = Math.round(((sec.box.xmin + sec.box.xmax) / 2 / boy.w) * 100);
+    const y = Math.round(((sec.box.ymin + sec.box.ymax) / 2 / boy.h) * 100);
+    return Math.max(0, Math.min(100, x)) + "% " + Math.max(0, Math.min(100, y)) + "%";
+  } catch (e) { return null; }
+}
+// Bütün resimler için yeniden bul (panel: 🐎 Atı otomatik bul)
+async function hepsiniOdakla(env) {
+  await odakSemaHazirla(env);
+  const say = { bulunan: 0, toplam: 0 };
+  const yaz = async (deger, f) => { say.toplam++; if (deger) { say.bulunan++; await f(deger); } };
+  const ic = await getSiteIcerik(env);
+  for (let n = 1; n <= 5; n++) {
+    const u = ic["hero_slide" + n] || ("aygirlar/images/slider" + (n + 1) + ".jpg");
+    await yaz(await atOdakBul(env, u), (d) => env.DB.prepare("INSERT INTO site_icerik (anahtar, deger) VALUES (?, ?) ON CONFLICT(anahtar) DO UPDATE SET deger=excluded.deger").bind("hero_pos" + n, d).run());
+  }
+  if (ic.perf_img) await yaz(await atOdakBul(env, ic.perf_img), (d) => env.DB.prepare("INSERT INTO site_icerik (anahtar, deger) VALUES ('perf_pos', ?) ON CONFLICT(anahtar) DO UPDATE SET deger=excluded.deger").bind(d).run());
+  for (const [t, kol] of [["gallery", "url"], ["news", "foto_url"], ["kisraklar", "foto_url"]]) {
+    const { results } = await env.DB.prepare("SELECT id, " + kol + " AS u FROM " + t + " WHERE " + kol + " IS NOT NULL AND " + kol + " <> ''" + (t === "gallery" ? " AND tip <> 'video'" : "")).all();
+    for (const r of results || []) await yaz(await atOdakBul(env, r.u), (d) => env.DB.prepare("UPDATE " + t + " SET odak=? WHERE id=?").bind(d, r.id).run());
+  }
+  return say;
+}
+const odakStil = (o) => (o && /^\d{1,3}% \d{1,3}%$/.test(o) ? ` style="object-position:${o}"` : "");
+// =====================================================================
+
 async function renderNewsHtml(env) {
   const { results } = await env.DB.prepare("SELECT * FROM news ORDER BY sira DESC, id DESC").all();
   if (!results || results.length === 0) {
@@ -224,7 +302,7 @@ async function renderNewsHtml(env) {
   }
   return results.map((n) => `
     <div class="gelisme-kart">
-      ${n.foto_url ? `<img src="${esc(n.foto_url)}" alt="">` : ""}
+      ${n.foto_url ? `<img src="${esc(n.foto_url)}" alt=""${odakStil(n.odak)}>` : ""}
       <span class="gelisme-tarih">${esc(n.tarih)}</span>
       <div class="gelisme-baslik">${esc(n.baslik)}</div>
       <div class="gelisme-icerik">${esc(n.icerik).replace(/\n/g, "<br>")}</div>
@@ -239,7 +317,7 @@ async function renderGalleryHtml(env) {
   return results.map((g) => {
     const media = g.tip === "video"
       ? `<video src="${esc(g.url)}" controls></video>`
-      : `<img src="${esc(g.url)}" alt="${esc(g.baslik)}">`;
+      : `<img src="${esc(g.url)}" alt="${esc(g.baslik)}"${odakStil(g.odak)}>`;
     return `<div class="galeri-item">${media}${g.baslik ? `<span>${esc(g.baslik)}</span>` : ""}</div>`;
   }).join("\n");
 }
@@ -251,7 +329,7 @@ async function renderKisrakHtml(env) {
   }
   return results.map((k) => `
     <div class="kisrak-kart">
-      ${k.foto_url ? `<img src="${esc(k.foto_url)}" alt="">` : ""}
+      ${k.foto_url ? `<img src="${esc(k.foto_url)}" alt=""${odakStil(k.odak)}>` : ""}
       <div class="kisrak-adi">${esc(k.kisrak_adi)}</div>
       ${k.sahip_adi ? `<span class="kisrak-sahip">${esc(k.sahip_adi)}</span>` : ""}
       <div class="kisrak-aciklama">${esc(k.aciklama).replace(/\n/g, "<br>")}</div>
@@ -353,6 +431,7 @@ async function servePublicPage(path, env) {
     "{{FOOTER_ACIKLAMA}}": esc(icerik.footer_aciklama || ""),
     "{{FOOTER_TELIF}}": footerTelifHtml,
     "{{PERF_IMG}}": esc(icerik.perf_img || "https://pub-421f02705d5c4bdb9780cbb61f25ccb1.r2.dev/panel/2026-11-14_22-38-06.webp"),
+    "{{PERF_POS}}": esc(icerik.perf_pos || "center 25%"),
     "{{HERO_POS_1}}": esc(icerik.hero_pos1 || "center"),
     "{{HERO_POS_2}}": esc(icerik.hero_pos2 || "center"),
     "{{HERO_POS_3}}": esc(icerik.hero_pos3 || "center"),
@@ -569,6 +648,9 @@ const PANEL_HTML = `<!DOCTYPE html>
   .odak img { display:block; max-width:100%; max-height:130px; border-radius:6px; }
   .odak i { position:absolute; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:#e53935; border:2px solid #fff; box-shadow:0 0 4px rgba(0,0,0,.6); pointer-events:none; }
   .ipucu { font-size:12px; color:#666; margin:2px 0 8px; }
+  .kirp { width:200px; max-width:100%; aspect-ratio:4/3; overflow:hidden; border-radius:6px; margin-bottom:6px; }
+  .kirp img { width:100%; height:100%; object-fit:cover; max-height:none; margin:0; }
+  .item .odak img { max-height:none; max-width:100%; }
   .rb-item { display:flex; justify-content:space-between; align-items:center; gap:8px; border:1px solid #eee; border-radius:6px; padding:10px; margin-bottom:8px; }
   .rb-item small { color:#777; display:block; }
   .rb-item button { margin-top:0; padding:8px 12px; }
@@ -1058,9 +1140,10 @@ async function saveSiteAyarlar() {
       }
     }
     for (let n = 1; n <= 5; n++) {
-      if (document.getElementById("sa-slide" + n + "-dosya").files[0]) body["hero_pos" + n] = "50% 50%";
+      if (document.getElementById("sa-slide" + n + "-dosya").files[0]) body["hero_pos" + n] = "oto";
       else if (window._heroPos && window._heroPos[n]) body["hero_pos" + n] = window._heroPos[n];
     }
+    if (document.getElementById("sa-perf-dosya").files[0]) body.perf_pos = "oto";
     const r = await fetch("/api/site-icerik", { method: "PUT", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
     showMsg("site-ayarlar-msg", r.ok ? "Kaydedildi" : "Hata oluştu", r.ok);
     if (r.ok) loadSiteAyarlar();
@@ -1372,12 +1455,42 @@ async function addGallery() {
 async function loadGallery() {
   const items = await (await fetch("/api/gallery")).json();
   const el = document.getElementById("gallery-list");
-  el.innerHTML = items.map(g => \`
-    <div class="item">
-      \${g.tip === 'video' ? '<video src="' + g.url + '" controls></video>' : '<img src="' + g.url + '">'}
-      \${g.baslik || ''}<br>
-      <button class="danger" onclick="deleteGallery(\${g.id})">Sil</button>
-    </div>\`).join("") || "<p>Henüz içerik yok.</p>";
+  window._galOdak = {};
+  el.innerHTML = (items.length ? '<button class="secondary" style="margin:0 0 12px" onclick="atiBul(this)">🐎 Bütün resimlerde atı otomatik bul</button>' : "") + (items.map(function (g) {
+    window._galOdak[g.id] = g.odak || "50% 50%";
+    const resim = g.tip === "video" ? '<video src="' + g.url + '" controls></video>'
+      : '<img src="' + g.url + '" id="gimg-' + g.id + '">'
+        + '<div class="ipucu" style="margin-top:6px">Sitede böyle görünür:</div><div class="kirp"><img src="' + g.url + '" id="gkirp-' + g.id + '" style="object-position:' + (g.odak || "50% 50%") + '"></div>';
+    return '<div class="item" id="gitem-' + g.id + '">' + resim + (g.baslik ? '<div>' + escH(g.baslik) + '</div>' : '')
+      + '<div class="row" style="flex:none">' + (g.tip === "video" ? "" : '<button class="secondary" onclick="galOdakAc(' + g.id + ')">🎯 Odağı ayarla</button>')
+      + '<button class="danger" onclick="deleteGallery(' + g.id + ')">Sil</button></div></div>';
+  }).join("") || "<p>Henüz içerik yok.</p>");
+}
+// 🎯 Elle odak: resim seçme kutusuna döner, dokunulan yer kaydedilir
+function galOdakAc(id) {
+  const img = document.getElementById("gimg-" + id); if (!img) return;
+  const kap = document.createElement("div"); kap.className = "odak"; kap.innerHTML = '<img src="' + img.src + '"><i></i>';
+  img.replaceWith(kap);
+  const ipucu = document.createElement("div"); ipucu.className = "ipucu"; ipucu.textContent = "Atın üstüne dokunun — sitede o kısım ortada görünür.";
+  kap.after(ipucu);
+  const nokta = function () { const p = (window._galOdak[id] || "50% 50%").split(" "); kap.querySelector("i").style.left = p[0]; kap.querySelector("i").style.top = p[1]; };
+  nokta();
+  kap.addEventListener("click", async function (e) {
+    const r = kap.querySelector("img").getBoundingClientRect();
+    const x = Math.round((e.clientX - r.left) / r.width * 100), y = Math.round((e.clientY - r.top) / r.height * 100);
+    const o = Math.max(0, Math.min(100, x)) + "% " + Math.max(0, Math.min(100, y)) + "%";
+    window._galOdak[id] = o; nokta();
+    document.getElementById("gkirp-" + id).style.objectPosition = o;
+    await fetch("/api/odak", { method: "POST", body: JSON.stringify({ tablo: "gallery", id: id, odak: o }), headers: { "Content-Type": "application/json" } });
+  });
+}
+async function atiBul(btn) {
+  btn.disabled = true; const eski = btn.textContent; btn.textContent = "⏳ Resimlere bakılıyor (1-2 dk)…";
+  try {
+    const r = await fetch("/api/odak-bul", { method: "POST" });
+    const d = await r.json().catch(function () { return {}; });
+    alert(r.ok ? ("Bitti: " + d.bulunan + " / " + d.toplam + " resimde odak ayarlandı (galeri, açılış resimleri, haber ve kısrak resimleri).") : "Olmadı, tekrar deneyin");
+  } finally { btn.disabled = false; btn.textContent = eski; loadGallery(); loadSiteAyarlar(); }
 }
 
 async function deleteGallery(id) {
@@ -1743,10 +1856,25 @@ const ANA_ISLEYICI = {
       if (path === "/api/gallery" && request.method === "POST") {
         if (!authed) return json({ error: "unauthorized" }, 401);
         const b = await request.json();
+        await odakSemaHazirla(env);
+        const odak = (b.tip || "foto") === "foto" ? await atOdakBul(env, b.url) : null;
         await env.DB.prepare(
-          "INSERT INTO gallery (tip, url, baslik) VALUES (?, ?, ?)"
-        ).bind(b.tip || "foto", b.url || "", b.baslik || "").run();
+          "INSERT INTO gallery (tip, url, baslik, odak) VALUES (?, ?, ?, ?)"
+        ).bind(b.tip || "foto", b.url || "", b.baslik || "", odak).run();
+        return json({ ok: true, odak });
+      }
+      if (path === "/api/odak" && request.method === "POST") {
+        // elle odak: {tablo: gallery|news|kisraklar, id, odak:"x% y%"}
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        await odakSemaHazirla(env);
+        const b = await request.json();
+        if (!["gallery", "news", "kisraklar"].includes(b.tablo) || !/^\d{1,3}% \d{1,3}%$/.test(String(b.odak || ""))) return json({ error: "geçersiz" }, 400);
+        await env.DB.prepare("UPDATE " + b.tablo + " SET odak=? WHERE id=?").bind(b.odak, Number(b.id) || 0).run();
         return json({ ok: true });
+      }
+      if (path === "/api/odak-bul" && request.method === "POST") {
+        if (!authed) return json({ error: "unauthorized" }, 401);
+        return json({ ok: true, ...(await hepsiniOdakla(env)) });
       }
       const galMatch = path.match(/^\/api\/gallery\/(\d+)$/);
       if (galMatch && request.method === "DELETE") {
@@ -1807,8 +1935,13 @@ const ANA_ISLEYICI = {
           "whatsapp_no", "talep_aciklama", "footer_aciklama", "footer_telif",
           "logo_img", "pedigree_img", "iletisim_img",
           "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
-          "hero_pos1", "hero_pos2", "hero_pos3", "hero_pos4", "hero_pos5", "perf_img", "rapor_pdf",
+          "hero_pos1", "hero_pos2", "hero_pos3", "hero_pos4", "hero_pos5", "perf_img", "perf_pos", "rapor_pdf",
         ]) {
+          // "oto" = yeni resim yüklendi, atın yerini yapay zekâ bulsun
+          if (b[k] === "oto") {
+            const kaynak = k === "perf_pos" ? b.perf_img : b["hero_slide" + k.slice(-1)];
+            b[k] = (kaynak && await atOdakBul(env, kaynak)) || "50% 50%";
+          }
           if (typeof b[k] === "string") {
             await env.DB.prepare("INSERT INTO site_icerik (anahtar, deger) VALUES (?, ?) ON CONFLICT(anahtar) DO UPDATE SET deger=excluded.deger").bind(k, b[k]).run();
           }
