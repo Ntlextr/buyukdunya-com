@@ -257,21 +257,17 @@ const PANEL_HTML = `<!DOCTYPE html>
   #login-screen { max-width:320px; margin:60px auto; }
   .hidden { display:none; }
   .uploading { opacity:0.6; }
-  header { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; }
-  .menu-btn { display:none; background:none; border:none; color:#fff; font-size:26px; line-height:1; padding:0 4px; margin:0; cursor:pointer; }
-  .layout { display:flex; align-items:flex-start; }
-  .side { width:210px; flex-shrink:0; background:#1f3d16; min-height:calc(100vh - 56px); position:sticky; top:56px; padding:8px 0; }
-  .side a { display:block; color:#fff; padding:13px 18px; text-decoration:none; font-size:15px; border-left:4px solid transparent; cursor:pointer; }
-  .side a.active { background:rgba(255,255,255,0.13); border-left-color:#b6e39f; font-weight:bold; }
-  .layout .wrap { flex:1; margin:0; min-width:0; }
+  header { display:flex; align-items:center; gap:10px; height:56px; padding:0 16px; }
+  .layout { display:flex; align-items:stretch; height:calc(100vh - 56px); }
+  @supports (height:100dvh) { .layout { height:calc(100dvh - 56px); } }
+  .side { width:86px; flex-shrink:0; background:#2f6b1f; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; }
+  .side a { display:block; color:#eef6e8; text-align:center; text-decoration:none; padding:14px 4px; font-size:11.5px; font-weight:600; line-height:1.25; border-left:3px solid transparent; cursor:pointer; }
+  .side a .mi { display:block; font-size:26px; line-height:1; margin-bottom:5px; }
+  .side a.active { background:#fff; color:#2f6b1f; border-left-color:#47952a; }
+  .layout .wrap { flex:1; min-width:0; max-width:none; margin:0; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  .layout .wrap > .card { max-width:760px; }
   .card.hide { display:none; }
-  .side-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:40; }
-  .side-overlay.show { display:block; }
-  @media (max-width:760px) {
-    .menu-btn { display:block; }
-    .side { position:fixed; top:0; left:0; bottom:0; width:240px; z-index:50; padding-top:64px; transform:translateX(-100%); transition:transform .25s ease; overflow-y:auto; min-height:0; }
-    .side.open { transform:translateX(0); }
-  }
+  @media (max-width:600px) { header h1 { font-size:16px; } .side { width:76px; } .side a { font-size:11px; padding:12px 2px; } .layout .wrap { padding:10px; } }
 </style>
 </head>
 <body>
@@ -285,18 +281,17 @@ const PANEL_HTML = `<!DOCTYPE html>
 </div>
 
 <div id="panel" class="hidden">
-  <header><button class="menu-btn" onclick="toggleSide()" aria-label="Menü">☰</button><h1>Büyükdünya - Yönetim Paneli</h1></header>
-  <div class="side-overlay" id="side-overlay" onclick="closeSide()"></div>
+  <header><h1>Büyükdünya - Yönetim Paneli</h1></header>
   <div class="layout">
   <nav class="side" id="side">
-    <a data-sec="yaris" onclick="showSec('yaris')">🏆 Yarış</a>
-    <a data-sec="metin" onclick="showSec('metin')">📝 Metinler</a>
-    <a data-sec="ayar" onclick="showSec('ayar')">⚙️ Site Ayarları</a>
-    <a data-sec="haber" onclick="showSec('haber')">📰 Haberler</a>
-    <a data-sec="galeri" onclick="showSec('galeri')">🖼️ Galeri</a>
-    <a data-sec="kisrak" onclick="showSec('kisrak')">🐎 Kısraklar</a>
-    <a data-sec="talep" onclick="showSec('talep')">📩 Talepler</a>
-    <a href="/" target="_blank">🌐 Siteyi Aç</a>
+    <a data-sec="yaris" onclick="showSec('yaris')"><span class="mi">🏆</span>Yarış</a>
+    <a data-sec="metin" onclick="showSec('metin')"><span class="mi">📝</span>Metinler</a>
+    <a data-sec="ayar" onclick="showSec('ayar')"><span class="mi">⚙️</span>Site Ayarları</a>
+    <a data-sec="haber" onclick="showSec('haber')"><span class="mi">📰</span>Haberler</a>
+    <a data-sec="galeri" onclick="showSec('galeri')"><span class="mi">🖼️</span>Galeri</a>
+    <a data-sec="kisrak" onclick="showSec('kisrak')"><span class="mi">🐎</span>Kısraklar</a>
+    <a data-sec="talep" onclick="showSec('talep')"><span class="mi">📩</span>Talepler</a>
+    <a href="/" target="_blank"><span class="mi">🌐</span>Siteyi Aç</a>
   </nav>
   <div class="wrap">
 
@@ -467,17 +462,8 @@ const PANEL_HTML = `<!DOCTYPE html>
 function showSec(sec) {
   document.querySelectorAll(".card[data-sec]").forEach(function (c) { c.classList.toggle("hide", c.dataset.sec !== sec); });
   document.querySelectorAll(".side a[data-sec]").forEach(function (a) { a.classList.toggle("active", a.dataset.sec === sec); });
-  closeSide();
-  window.scrollTo(0, 0);
+  const w = document.querySelector(".layout .wrap"); if (w) w.scrollTop = 0;
   try { localStorage.setItem("panelSec", sec); } catch (e) {}
-}
-function toggleSide() {
-  document.getElementById("side").classList.toggle("open");
-  document.getElementById("side-overlay").classList.toggle("show");
-}
-function closeSide() {
-  document.getElementById("side").classList.remove("open");
-  document.getElementById("side-overlay").classList.remove("show");
 }
 
 function showMsg(id, text, ok) {
