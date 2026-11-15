@@ -29,6 +29,31 @@ function esc(s) {
 }
 
 // "905324082999" -> "0532 408 29 99"
+// Sosyal medya hesapları: anahtar, görünen ad, simge (SVG yolu)
+const SOSYAL = [
+  ["sosyal_instagram", "Instagram", "M12 2.2c3.2 0 3.6 0 4.8.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-3.3-.1-4.8-1.7-4.9-4.9C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8C2.4 3.9 3.9 2.4 7.2 2.3 8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 2.7.3.3 2.7.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.2 4.4 2.6 6.8 7 7 1.2.1 1.6.1 4.9.1s3.7 0 4.9-.1c4.4-.2 6.8-2.6 7-7 .1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9c-.2-4.4-2.6-6.8-7-7C15.7 0 15.3 0 12 0zm0 5.8a6.2 6.2 0 100 12.4 6.2 6.2 0 000-12.4zM12 16a4 4 0 110-8 4 4 0 010 8zm6.4-11.8a1.4 1.4 0 100 2.9 1.4 1.4 0 000-2.9z"],
+  ["sosyal_facebook", "Facebook", "M24 12.1C24 5.4 18.6 0 12 0S0 5.4 0 12.1c0 6 4.4 11 10.1 11.9v-8.4H7.1v-3.5h3V9.4c0-3 1.8-4.7 4.5-4.7 1.3 0 2.7.2 2.7.2v3h-1.5c-1.5 0-2 .9-2 1.9v2.3h3.4l-.5 3.5h-2.9V24C19.6 23.1 24 18.1 24 12.1z"],
+  ["sosyal_x", "X", "M18.2 2.3h3.4l-7.4 8.4L23 21.7h-6.8l-5.3-6.9-6.1 6.9H1.4l7.9-9L.9 2.3h7l4.8 6.3 5.5-6.3zm-1.2 17.4h1.9L7 4.2H5z"],
+  ["sosyal_youtube", "YouTube", "M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z"],
+  ["sosyal_tiktok", "TikTok", "M12.5.02C13.8 0 15.1.01 16.4 0c.1 1.5.6 3.1 1.8 4.2 1.1 1.1 2.7 1.6 4.2 1.8v4c-1.4 0-2.9-.3-4.2-1-.6-.3-1.1-.6-1.6-.9v8.7c0 1.7-.5 3.3-1.5 4.6a8.4 8.4 0 01-6.7 3.6c-1.6.1-3.3-.4-4.7-1.2A8.6 8.6 0 01.2 15.5c0-.6 0-1.1.1-1.7.4-2.1 1.6-4 3.3-5.3 1.9-1.5 4.5-2.2 6.9-1.7v4.4c-1.1-.4-2.3-.3-3.3.3-.7.4-1.3 1.1-1.5 1.9-.2.6-.2 1.2 0 1.8.4 1.3 1.7 2.4 3.1 2.3 1 0 1.9-.6 2.4-1.4.2-.3.4-.6.4-1 .1-1.7.1-3.4.1-5.1V.02z"],
+  ["sosyal_harita", "Google Haritalar", "M12 0C7.6 0 4 3.6 4 8c0 6 8 16 8 16s8-10 8-16c0-4.4-3.6-8-8-8zm0 11a3 3 0 110-6 3 3 0 010 6z"],
+];
+// Panelden gelen bağlantıyı temizler: https yoksa ekler, izleme parametrelerini (?s=, utm_, igsh…) atar
+function sosyalTemiz(u) {
+  u = String(u || "").trim();
+  if (!u) return "";
+  if (!/^https?:\/\//i.test(u)) u = "https://" + u.replace(/^\/+/, "");
+  try {
+    const x = new URL(u);
+    if (x.protocol !== "https:" && x.protocol !== "http:") return "";
+    for (const k of [...x.searchParams.keys()]) if (/^(s|t|utm_.*|igsh|igshid|si|fbclid|ref|mibextid)$/i.test(k)) x.searchParams.delete(k);
+    return x.toString().slice(0, 300);
+  } catch { return ""; }
+}
+function sosyalIkonlar(icerik) {
+  return SOSYAL.filter(([k]) => icerik[k]).map(([k, ad, d]) =>
+    `<a href="${esc(icerik[k])}" target="_blank" rel="noopener" aria-label="${ad}" title="${ad}" onclick="fetch('/api/wa-click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kaynak:'sosyal-${k.slice(7)}'})}).catch(()=>{})"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg></a>`).join("");
+}
 function formatPhoneTR(no) {
   const digits = String(no || "").replace(/\D/g, "");
   const local = digits.startsWith("90") ? digits.slice(2) : digits;
@@ -600,6 +625,13 @@ async function servePublicPage(path, env) {
   html = html.replace("<!--PEDIGREE_IMG-->", icerik.pedigree_img ? `<img src="${esc(icerik.pedigree_img)}" alt="Büyükdünya Pedigree" style="margin-bottom:28px">` : "");
   html = html.replace(/<!--LOGO_START-->[\s\S]*?<!--LOGO_END-->/, icerik.logo_img ? `<img src="${esc(icerik.logo_img)}" alt="Büyükdünya">` : "");
 
+  // Sosyal medya bağlantıları (panel › Site Ayarları › Sosyal medya). Boş olan görünmez.
+  const sosyalHtml = sosyalIkonlar(icerik);
+  if (sosyalHtml) {
+    html = html.replace("<p>{{FOOTER_ACIKLAMA}}</p>", "<p>{{FOOTER_ACIKLAMA}}</p>" + '<div class="sosyal sosyal-foot">' + sosyalHtml + "</div>");
+    html = html.replace("WhatsApp'tan Yazın</a>\n    </div>\n  </div>\n</section>", "WhatsApp'tan Yazın</a>" + '<div class="sosyal sosyal-ilet">' + sosyalHtml + "</div>\n    </div>\n  </div>\n</section>");
+    html = html.replace("</head>", "<style>.sosyal{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.sosyal a{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);color:inherit;transition:transform .15s,background .15s}.sosyal a:hover{transform:translateY(-2px);background:rgba(255,255,255,.25)}.sosyal svg{width:20px;height:20px;fill:currentColor}.sosyal-ilet a{background:#102414;color:#fff}.sosyal-ilet a:hover{background:#25D366}.foot-col .sosyal a{padding:0;margin:0}</style></head>");
+  }
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
   const waNo = icerik.whatsapp_no || "905324082999";
   // Footer telif yazısı içinde "Seray Tekno Yazılım" geçiyorsa otomatik olarak
@@ -751,7 +783,7 @@ PANEL KULLANIMI (adres: buyukdunya.com/panel; herkes kendi kullanıcı adı + ş
 Sol taraftaki menüden bölüm seçilir; seçilen bölüm sağda açılır.
 1) 🏆 Yarış: "Yarış Sayaçları" (Toplam Yarış, Birincilik, Grup Koşu Birinciliği, KV Birinciliği) sitenin üstündeki koyu şeritte görünen rakamlardır; değiştirip Kaydet'e basılır. "Yarış Geçmişi Ekle": Tarih, Hipodrom, Mesafe, Sonuç, Açıklama yazılıp Ekle'ye basılır; listede her kaydın Sil düğmesi vardır. Bir kayıt düzeltilecekse silinip doğrusu eklenir.
 2) 📝 Metinler: Ana sayfadaki büyük fotoğrafın üstündeki küçük üst yazı ve tanıtım cümlesi; Hakkında bölümünün kalın başlığı, künye kutusu (her satır ayrı satıra yazılır) ve uzun açıklama metni. Değiştirip Kaydet.
-3) ⚙️ Site Ayarları: WhatsApp numarası (sitedeki tüm WhatsApp düğmeleri ve telefon bunu kullanır), Talep Formu açıklaması, footer açıklaması ve telif yazısı (telif yazısında "Seray Tekno Yazılım" geçerse otomatik link olur). Görseller: Logo (boş bırakılırsa sadece yazı görünür, "Logoyu Kaldır" düğmesi var, yüklenen logo otomatik küçültülür), "Pistten Kanıt" bölümü fotoğrafı, Pedigree görseli (boşsa görünmez), İletişim görseli ve ana sayfada dönen 5 slayt fotoğrafı. Slayt fotoğraflarında önizlemeye dokunarak atın durduğu nokta seçilir; telefonda o nokta ortada görünür (kırmızı nokta seçilen yeri gösterir). Dosya seçip en alttaki Kaydet'e basılır.
+3) ⚙️ Site Ayarları: WhatsApp numarası (sitedeki tüm WhatsApp düğmeleri ve telefon bunu kullanır), 🌐 Sosyal medya hesapları (Instagram, Facebook, X, YouTube, TikTok, Google Haritalar — bağlantı yapıştırılır, boş olan görünmez; simgeler sitenin altında ve İletişim bölümünde çıkar), Talep Formu açıklaması, footer açıklaması ve telif yazısı (telif yazısında "Seray Tekno Yazılım" geçerse otomatik link olur). Görseller: Logo (boş bırakılırsa sadece yazı görünür, "Logoyu Kaldır" düğmesi var, yüklenen logo otomatik küçültülür), "Pistten Kanıt" bölümü fotoğrafı, Pedigree görseli (boşsa görünmez), İletişim görseli ve ana sayfada dönen 5 slayt fotoğrafı. Slayt fotoğraflarında önizlemeye dokunarak atın durduğu nokta seçilir; telefonda o nokta ortada görünür (kırmızı nokta seçilen yeri gösterir). Dosya seçip en alttaki Kaydet'e basılır.
 4) 📰 Haberler: Tarih, Başlık, İçerik ve isteğe bağlı fotoğrafla haber eklenir; listeden silinir.
 5) 🖼️ Galeri: Tür (Fotoğraf/Video) seçilir, "Dosya Seç" ile aynı anda birden çok fotoğraf seçilebilir, Ekle'ye basılır. Fotoğraflar otomatik küçültülüp WebP'ye çevrilir ve dosya adı yükleme tarih-saati olur. En son eklenen galeride en başta görünür. Listeden Sil ile kaldırılır.
 6) 🐎 Kısraklar: Eşleşen kısrak adı, sahibi, açıklama/pedigri, tay bilgisi ve fotoğraf eklenir. En üstte "📄 Analiz PDF'inden kısrak ekle": eşleşme analizi PDF'i (ör. Buyukdunya_Mabeyn_Pedigri_Analizi.pdf) seçilir, istenirse aynı anda birden çok; panel PDF'i okur, kısrağın adını ("Büyükdünya × Mabeyn" satırından), baba × anne satırını ve gebelik yılını kendisi doldurur; o adda kısrak zaten varsa PDF'i ona eklenir. Listede her kısrakta "📄 Analizi aç" (PDF'i açar) ve "📄 PDF ekle / değiştir" düğmeleri vardır. PDF SİTEDE GÖRÜNMEZ, sadece panelde durur; sitede kısrak kartında ad, sahip, açıklama (baba × anne) ve tay bilgisi görünür. Her kısrakta "✏️ Düzenle" vardır: ad, sahip, açıklama, tay bilgisi değiştirilir ve İSTENDİĞİ KADAR fotoğraf eklenir (birden çok seçilebilir, kendiliğinden küçültülür); ◀ ▶ ile sıralanır, ✕ ile çıkarılır, ilk fotoğraf sitede kartın büyük fotoğrafı olur, diğerleri altında küçük resim olarak görünür; sonra "Kaydet". Yeni kısrak eklerken de birden çok fotoğraf seçilebilir.
@@ -774,7 +806,8 @@ SIK SORULANLAR (bunları aynen bu adımlarla anlat):
 - Bir kısrağın eşleşme analizi PDF'ini eklemek: Sol menü → 🐎 Kısraklar → en üstteki "📄 Analiz PDF'inden kısrak ekle" → "Dosya Seç" ile PDF'i (birden çok da olur) seç → "PDF'leri yükle". Panel kısrağı kendisi açar ya da aynı adlı kısrağa ekler. Başka bir kısrağa elle eklemek için listede o kısrağın "📄 PDF ekle / değiştir" düğmesi.
 - Seyis eklemek: Sol menü → 👥 Kullanıcılar → Adı soyadı, kullanıcı adı (ör. ahmet), Rol: Seyis, şifre → Kaydet. Kullanıcı adı ve şifreyi seyise ver; o buyukdunya.com/panel'i açıp girer, sadece Seyis ekranını görür.
 - Kısrağa fotoğraf eklemek / bilgisini değiştirmek: 🐎 Kısraklar → listede kısrağın "✏️ Düzenle" → "Dosya Seç" ile fotoğrafları seç (birden çok olur) → sırayı ◀ ▶ ile ayarla → "Kaydet". WhatsApp'tan gelen PDF önce telefona kaydedilir (PDF'e dokun → üç nokta → Kaydet / İndir), sonra panelde "Dosya Seç"ten İndirilenler'den seçilir.
-- WhatsApp numarasını değiştirmek: ⚙️ Site Ayarları → WhatsApp numarası → Kaydet.`;
+- WhatsApp numarasını değiştirmek: ⚙️ Site Ayarları → WhatsApp numarası → Kaydet.
+- Sosyal medya hesabı eklemek: ⚙️ Site Ayarları → 🌐 Sosyal medya hesapları → ilgili kutuya bağlantıyı yapıştır → en alttaki Kaydet. Kaldırmak için kutuyu boşalt, Kaydet.`;
 
 async function sahliBaglam(env) {
   const parca = [];
@@ -1006,6 +1039,15 @@ const PANEL_HTML = `<!DOCTYPE html>
       <textarea id="sa-faciklama"></textarea>
       <label>Footer telif (copyright) yazısı</label>
       <input type="text" id="sa-ftelif">
+
+      <h3 style="margin-top:18px">🌐 Sosyal medya hesapları</h3>
+      <p style="font-size:13px;color:#666;margin:0 0 6px">Hesabın bağlantısını yapıştırın (uygulamadaki "Paylaş › Bağlantıyı kopyala"). Boş bırakılan sitede görünmez. Simgeler sitenin altında ve İletişim bölümünde çıkar.</p>
+      <label>Instagram</label><input type="url" id="sa-s-instagram" placeholder="https://instagram.com/...">
+      <label>Facebook</label><input type="url" id="sa-s-facebook" placeholder="https://facebook.com/...">
+      <label>X (Twitter)</label><input type="url" id="sa-s-x" placeholder="https://x.com/...">
+      <label>YouTube</label><input type="url" id="sa-s-youtube" placeholder="https://youtube.com/@...">
+      <label>TikTok</label><input type="url" id="sa-s-tiktok" placeholder="https://tiktok.com/@...">
+      <label>Google Haritalar (konum)</label><input type="url" id="sa-s-harita" placeholder="https://maps.app.goo.gl/...">
 
       <label>Logo (header, opsiyonel - boş bırakılırsa sadece yazı görünür)</label>
       <div id="sa-logo-prev"></div>
@@ -1477,6 +1519,7 @@ async function loadSiteAyarlar() {
   document.getElementById("sa-talep").value = d.talep_aciklama || "";
   document.getElementById("sa-faciklama").value = d.footer_aciklama || "";
   document.getElementById("sa-ftelif").value = d.footer_telif || "";
+  for (const k of ["instagram", "facebook", "x", "youtube", "tiktok", "harita"]) document.getElementById("sa-s-" + k).value = d["sosyal_" + k] || "";
   const previews = {
     "sa-logo-prev": d.logo_img,
     "sa-pedigree-prev": d.pedigree_img,
@@ -1544,6 +1587,7 @@ async function saveSiteAyarlar() {
       footer_aciklama: document.getElementById("sa-faciklama").value,
       footer_telif: document.getElementById("sa-ftelif").value,
     };
+    for (const k of ["instagram", "facebook", "x", "youtube", "tiktok", "harita"]) body["sosyal_" + k] = document.getElementById("sa-s-" + k).value.trim();
     const fileMap = {
       logo_img: "sa-logo-dosya",
       pedigree_img: "sa-pedigree-dosya",
@@ -3058,7 +3102,9 @@ const ANA_ISLEYICI = {
           "hero_slide1", "hero_slide2", "hero_slide3", "hero_slide4", "hero_slide5",
           "hero_pos1", "hero_pos2", "hero_pos3", "hero_pos4", "hero_pos5", "perf_img", "perf_pos", "rapor_pdf",
           "hero_video", "hero_video_poster", "hero_video_ses",
+          "sosyal_instagram", "sosyal_facebook", "sosyal_x", "sosyal_youtube", "sosyal_tiktok", "sosyal_harita",
         ]) {
+          if (k.startsWith("sosyal_") && typeof b[k] === "string") b[k] = sosyalTemiz(b[k]);
           // "oto" = yeni resim yüklendi, atın yerini yapay zekâ bulsun
           if (b[k] === "oto") {
             const kaynak = k === "perf_pos" ? b.perf_img : b["hero_slide" + k.slice(-1)];

@@ -24,3 +24,10 @@ Serdar: "Güven PDF olarak yüklesin, panel onu yüklesin; diğerlerini de gönd
 
 ## Şifre göster/gizle + Türkçe harfli kullanıcı adı (15.11.2026)
 Güven Bey Şahlı Grup Panel'e giremedi (5 yanlış şifre → 15 dk kilit). Şifresi yenilendi (değer buraya yazılmaz, Serdar'a iletildi), kilit temizlendi. Bütün şifre kutularına 👁 / 🙈 göster-gizle düğmesi (Şahlı `panel.js`, Büyükdünya panel, Luxury v1.54.2; betik `input[type=password]`'leri `.goz-sar` içine alır). Girişte kullanıcı adı Türkçe harfle yazılsa da bulunur ("Güven" → `guven`; Şahlı `/giris`, Büyükdünya `/panel/login`).
+
+## Sosyal medya hesapları (15.11.2026)
+Panel › ⚙️ Site Ayarları › 🌐 Sosyal medya hesapları: Instagram, Facebook, X, YouTube, TikTok, Google Haritalar.
+`site_icerik` anahtarları `sosyal_instagram|facebook|x|youtube|tiktok|harita`. Kaydederken `sosyalTemiz()` https ekler,
+izleme parametrelerini (?s=, t, utm_, igsh, fbclid, si…) atar; http(s) dışı bağlantı boş olur. Sitede `sosyalIkonlar()` simgeleri
+(SVG, dış yazı tipi yok) alt bilgide (açıklamanın altında) ve İletişim bölümünde (WhatsApp düğmesinin altında) basar; boş olan görünmez.
+Tıklamalar `/api/wa-click` kaynak `sosyal-<ad>` ile sayılır. İlk kayıt: X = https://x.com/buyukdunyaaygir.
