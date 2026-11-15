@@ -31,3 +31,11 @@ Panel › ⚙️ Site Ayarları › 🌐 Sosyal medya hesapları: Instagram, Fac
 izleme parametrelerini (?s=, t, utm_, igsh, fbclid, si…) atar; http(s) dışı bağlantı boş olur. Sitede `sosyalIkonlar()` simgeleri
 (SVG, dış yazı tipi yok) alt bilgide (açıklamanın altında) ve İletişim bölümünde (WhatsApp düğmesinin altında) basar; boş olan görünmez.
 Tıklamalar `/api/wa-click` kaynak `sosyal-<ad>` ile sayılır. İlk kayıt: X = https://x.com/buyukdunyaaygir.
+
+## Şahlı AI: bütün grup + yetki kuralı + Developer'a iletme (15.11.2026)
+Serdar: "Şahlı grupla ve alt panellerle ilgili ne varsa SQL hariç öğret; yetkisi dışında soru alırsa 'Developer Serdar Bey'e ileteceğim' desin."
+- `SAHLI_REHBER` sonuna "ŞAHLI GRUP — DİĞER PANELLER" bilgisi: Şahlı Grup Panel (kartlar, Panele gir, mesajlar, 🔔 bildirim), Luxury paneli (satış, randevu, muhasebe, kasalar ve virman, raporlar, roller, canlı izle, tanımlamalar), Şahlı Otomotiv (yakında). Luxury'de bir şey değişirse burası da güncellenir.
+- Her soruda sistem mesajına "SORAN KİŞİ": ad, rol, açık bölümler (`izinleri`). Yönetici/Developer her şeyi sorar; diğer roller sadece kendi bölümlerini; Luxury ve Şahlı Grup onlara kapalı.
+- Yetki dışı / panelde olmayan / teknik (SQL, tablo, kod, sunucu, anahtar) soru → cevap "… Sorunuzu Developer Serdar Bey'e ileteceğim." + model sona `[[ILET]]` yazar; sunucu işareti siler ve `aiSoruIlet()`: D1 `ai_ilet (id, zaman, kadi, ad, rol, soru)` + Şahlı Grup kancasıyla `u:"serdar"` bildirimi (Şahlı DB'de serdar'ın `bd_kadi='serdar'` yapıldı). Soran Developer ise iletilmez.
+- Model artık `@cf/meta/llama-4-scout-17b-16e-instruct` (uzun bağlam). Eski Llama 3.3'ün 24k sınırı Hara Defteri ve rapor bilgisiyle aşılıyordu → Şahlı AI hata veriyordu. Scout hata verirse Llama 3.3'e kısaltılmış bilgiyle düşer. temperature 0.1.
+- Kural: panelde olmayan ayar için yol uydurmaz (renk, yorum bölümü vb. örnekler istemde).
