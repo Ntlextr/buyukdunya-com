@@ -234,7 +234,7 @@ export default {
     if (yol === "/giris" && req.method === "POST") {
       await semaHazirla(env);
       let g = {}; try { g = await req.json(); } catch (e) {}
-      const kadi = String(g.kadi || "").trim().toLowerCase(), simdi = Date.now();
+      const kadi = String(g.kadi || "").trim().toLocaleLowerCase("tr").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ı/g, "i").replace(/ç/g, "c"), simdi = Date.now();   // "Güven" yazılsa da "guven" bulunur
       const kil = ["ip:" + ip, "k:" + kadi];
       for (const a of kil) { const r = await env.DB.prepare("SELECT sayi, bitis FROM giris_kilidi WHERE anahtar=?").bind(a).first(); if (r && r.bitis > simdi && r.sayi >= (a.startsWith("ip:") ? 5 : 10)) return json({ hata: "Çok fazla yanlış deneme. 15 dakika sonra yeniden deneyin." }, 429); }
       const u = kadi ? await env.DB.prepare("SELECT id, sifre FROM kullanici WHERE kadi=? COLLATE NOCASE AND aktif=1").bind(kadi).first() : null;

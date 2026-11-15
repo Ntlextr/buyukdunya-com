@@ -2552,6 +2552,8 @@ function anaEkranTarifi() {
 // Oturum zaten açıksa doğrudan paneli göster
 panelAc().then(function (ok) { if (ok) korumaKur(); anaEkranTarifi(); });
 </script>
+<style>.goz-sar{position:relative;display:block}.goz-sar>input{padding-right:46px!important;width:100%;box-sizing:border-box}.goz-btn{position:absolute!important;right:4px;top:50%;transform:translateY(-50%);background:transparent!important;border:0!important;box-shadow:none!important;font-size:19px!important;line-height:1;cursor:pointer;padding:6px 8px!important;margin:0!important;width:auto!important;min-width:0!important;height:auto!important;color:inherit;opacity:.75}.goz-btn:hover{opacity:1}</style>
+<script>/* Şifre kutularına göster/gizle düğmesi (15.11.2026) */(function(){function ek(){document.querySelectorAll('input[type=password]:not([data-goz])').forEach(function(i){i.setAttribute('data-goz','1');var s=document.createElement('span');s.className='goz-sar';i.parentNode.insertBefore(s,i);s.appendChild(i);var b=document.createElement('button');b.type='button';b.className='goz-btn';b.title='Şifreyi göster';b.setAttribute('aria-label','Şifreyi göster');b.textContent='👁';b.onclick=function(){var g=i.type==='password';i.type=g?'text':'password';b.textContent=g?'🙈':'👁';b.title=g?'Şifreyi gizle':'Şifreyi göster';b.setAttribute('aria-label',b.title);};s.appendChild(b);});}if(document.readyState!=='loading')ek();else document.addEventListener('DOMContentLoaded',ek);setInterval(ek,2000);})();</script>
 </body>
 </html>`;
 
@@ -2565,7 +2567,7 @@ const ANA_ISLEYICI = {
       await semaHazirla(env);
       let g = {}; try { g = await request.json(); } catch (e) {}
       const ip = request.headers.get("cf-connecting-ip") || "-";
-      const kadi = String(g.kadi || "").trim().toLowerCase();
+      const kadi = String(g.kadi || "").trim().toLocaleLowerCase("tr").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ı/g, "i").replace(/ç/g, "c");   // "Güven" yazılsa da "guven" bulunur
       const simdi = Date.now();
       const kilitler = ["ip:" + ip].concat(kadi ? ["k:" + kadi] : []);
       for (const a of kilitler) {
