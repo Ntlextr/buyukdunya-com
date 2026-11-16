@@ -646,6 +646,23 @@ async function servePublicPage(path, env) {
     html = html.replace("WhatsApp'tan Yazın</a>\n    </div>\n  </div>\n</section>", "WhatsApp'tan Yazın</a>" + '<div class="sosyal sosyal-ilet">' + sosyalHtml + "</div>\n    </div>\n  </div>\n</section>");
     html = html.replace("</head>", "<style>.sosyal{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.sosyal a{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);color:inherit;transition:transform .15s,background .15s}.sosyal a:hover{transform:translateY(-2px);background:rgba(255,255,255,.25)}.sosyal svg{width:20px;height:20px;fill:currentColor}.sosyal-ilet a{background:#102414;color:#fff}.sosyal-ilet a:hover{background:#25D366}.foot-col .sosyal a{padding:0;margin:0}</style></head>");
   }
+  // Açılış altındaki 4 kutu tıklanabilir (Güven 16.11.2026: "tıklayınca bir yere gitmiyor")
+  for (const [eski, yeni] of [
+    ['<div class="icon-item"><div class="ic">📋</div>', '<a class="icon-item js-scroll" href="#pedigree"><div class="ic">📋</div>'],
+    ['<div class="icon-item"><div class="ic">🧬</div>', '<a class="icon-item js-scroll" href="#eslesme"><div class="ic">🧬</div>'],
+    ['<div class="icon-item"><div class="ic">🏆</div>', '<a class="icon-item js-scroll" href="#yarisrekorlari"><div class="ic">🏆</div>'],
+    ['<div class="icon-item"><div class="ic">💬</div>', '<a class="icon-item" target="_blank" rel="noopener" href="https://wa.me/{{WA_NO}}?text=Merhaba%2C%20buyukdunya.com%20%C3%BCzerinden%20yaz%C4%B1yorum%2C%20BÜYÜKDÜNYA%20hakk%C4%B1nda%20bilgi%20almak%20istiyorum." onclick="fetch(\'/api/wa-click\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({kaynak:\'ikon-hizli-donus\'})}).catch(()=>{})"><div class="ic">💬</div>'],
+  ]) {
+    const i = html.indexOf(eski);
+    if (i < 0) continue;
+    const k = html.indexOf('<div class="sub">', i);
+    const j = k < 0 ? -1 : html.indexOf("</div></div>", k);
+    if (j < 0 || j - i > 400) continue;
+    html = html.slice(0, i) + yeni + html.slice(i + eski.length, j) + "</div></a>" + html.slice(j + 12);
+  }
+  html = html.replace("</head>", "<style>a.icon-item{text-decoration:none;display:block;border-radius:10px;padding:8px 4px;transition:background .15s,transform .15s;cursor:pointer}a.icon-item:hover{background:rgba(255,255,255,.08);transform:translateY(-2px)}a.icon-item .lbl::after{content:' ›';opacity:.6}section[id],.stat-strip{scroll-margin-top:104px}"
+    // Bilgisayarda açılış videosu kırpılmasın: ekran yüksekliğine sığacak 16:9 alan, video tamamı görünür
+    + "@media (min-width:701px){.hero.videolu{height:min(calc(100vw * 9 / 16),calc(100vh - 110px));max-height:none;min-height:380px;background:#0b1626}.hero.videolu .hero-video{object-fit:contain}.hero.videolu .ses-dugme{right:96px}}</style></head>");
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
   const waNo = icerik.whatsapp_no || "905324082999";
   // Footer telif yazısı içinde "Seray Tekno Yazılım" geçiyorsa otomatik olarak

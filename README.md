@@ -39,3 +39,8 @@ Serdar: "Şahlı grupla ve alt panellerle ilgili ne varsa SQL hariç öğret; ye
 - Yetki dışı / panelde olmayan / teknik (SQL, tablo, kod, sunucu, anahtar) soru → cevap "… Sorunuzu Developer Serdar Bey'e ileteceğim." + model sona `[[ILET]]` yazar; sunucu işareti siler ve `aiSoruIlet()`: D1 `ai_ilet (id, zaman, kadi, ad, rol, soru)` + Şahlı Grup kancasıyla `u:"serdar"` bildirimi (Şahlı DB'de serdar'ın `bd_kadi='serdar'` yapıldı). Soran Developer ise iletilmez.
 - Model artık `@cf/meta/llama-4-scout-17b-16e-instruct` (uzun bağlam). Eski Llama 3.3'ün 24k sınırı Hara Defteri ve rapor bilgisiyle aşılıyordu → Şahlı AI hata veriyordu. Scout hata verirse Llama 3.3'e kısaltılmış bilgiyle düşer. temperature 0.1.
 - Kural: panelde olmayan ayar için yol uydurmaz (renk, yorum bölümü vb. örnekler istemde).
+
+## Açılış altı kutular + bilgisayarda video (16.11.2026)
+Güven: "Pedigri Analizi, Soy Uyumu tıklayınca bir yere gitmiyor" ve "PC'de görüntü yerine oturmuyor" (video).
+- worker.js (index.html'e dokunmadan, sayfa üretilirken): 4 `icon-item` kutusu bağlantı oldu — Pedigri Analizi → `#pedigree`, Soy Uyumu → `#eslesme`, Yarış Rekoru → `#yarisrekorlari`, Hızlı Dönüş → WhatsApp (tıklama kaynağı `ikon-hizli-donus`). Bütün bölümlere `scroll-margin-top:104px` (menüden ya da kutudan gidince başlık sabit üst menünün altında kalmıyordu).
+- Bilgisayarda (701 px üstü) açılış videosu artık kırpılmıyor: alan 16:9 ama ekran yüksekliğini geçmez (`min(100vw*9/16, 100vh-110px)`), video `object-fit:contain` → videonun tamamı (alttaki yarış bandı dahil) görünür, yanlarda koyu boşluk. "Sesi aç" düğmesi WhatsApp düğmesinin altında kalmasın diye sola alındı. Telefon görünümü değişmedi.
