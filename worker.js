@@ -663,6 +663,23 @@ async function servePublicPage(path, env) {
   html = html.replace("</head>", "<style>a.icon-item{text-decoration:none;display:block;border-radius:10px;padding:8px 4px;transition:background .15s,transform .15s;cursor:pointer}a.icon-item:hover{background:rgba(255,255,255,.08);transform:translateY(-2px)}a.icon-item .lbl::after{content:' ›';opacity:.6}section[id],.stat-strip{scroll-margin-top:104px}"
     // Bilgisayarda açılış videosu kırpılmasın: ekran yüksekliğine sığacak 16:9 alan, video tamamı görünür
     + "@media (min-width:701px){.hero.videolu{height:min(calc(100vw * 9 / 16),calc(100vh - 110px));max-height:none;min-height:380px;background:#0b1626}.hero.videolu .hero-video{object-fit:contain}.hero.videolu .ses-dugme{right:96px}}</style></head>");
+  // Telefonun geri tuşu siteden atmasın (Güven 16.11.2026): menüden / kutudan bir bölüme gidince
+  // geçmişe kayıt düşülür; geri tuşu önceki yere kaydırır. En başa gelince normal geri çalışır.
+  html = html.replace("</body>", `<button type="button" id="yukariDug" aria-label="Yukarı çık" style="position:fixed;left:16px;bottom:22px;z-index:900;width:46px;height:46px;border-radius:50%;border:0;background:#0d1b3d;color:#fff;font-size:22px;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;cursor:pointer">↑</button>
+<script>(function(){
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  var y = document.getElementById("yukariDug");
+  addEventListener("scroll", function(){ y.style.display = scrollY > 700 ? "block" : "none"; }, {passive:true});
+  function git(yer){ history.replaceState({bdY: scrollY}, ""); history.pushState({bdY: null}, ""); }
+  y.addEventListener("click", function(){ git(); scrollTo({top:0, behavior:"smooth"}); });
+  document.addEventListener("click", function(e){
+    var a = e.target.closest && e.target.closest("a.js-scroll");
+    if (a && (a.getAttribute("href") || "").charAt(0) === "#") git();
+  }, true);
+  addEventListener("popstate", function(e){
+    if (e.state && typeof e.state.bdY === "number") { var h = e.state.bdY; scrollTo(0, h); setTimeout(function(){ scrollTo(0, h); }, 120); }
+  });
+})();</script></body>`);
   // Tüm site genelinde tek noktadan yönetilen değerler (token tabanlı değişim)
   const waNo = icerik.whatsapp_no || "905324082999";
   // Footer telif yazısı içinde "Seray Tekno Yazılım" geçiyorsa otomatik olarak
